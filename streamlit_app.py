@@ -37,7 +37,7 @@ st.set_page_config(
 # =======================================================
 # 1) セッション状態の初期化
 # =======================================================
-st.session_state.setdefault("lang", "JP")  # デフォルトは日本語
+st.session_state.setdefault("lang", "EN")  # デフォルトは英語
 
 # （任意）URL クエリ (?lang=JP) があればそれを優先する
 params = st.query_params
