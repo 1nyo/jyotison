@@ -197,11 +197,10 @@ with col2:
         # label_visibility="collapsed"  # ← ラベル非表示でスッキリ
     )
 
-# EN が選ばれたときだけ ?lang を URL から消す
-if st.session_state.lang == "EN":
-    qp = st.query_params  # 直接操作する
-    if "lang" in qp:
-        del qp["lang"]
+# URL の ?lang と、現在の選択 lang が違う場合だけ ?lang を URL から消す
+qp = st.query_params  # dict-like
+if "lang" in qp and qp["lang"] != st.session_state.lang:
+    del qp["lang"]
 
 # =======================================================
 # 3) Engine Info (Grid Layout)
