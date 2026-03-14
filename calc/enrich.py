@@ -456,7 +456,7 @@ def enrich_d1(d1: Chart, planets_raw: Dict[str, Dict], d9: Optional[Chart] = Non
     d1["derived"] = derived
     return d1
 
-def apply_varga_flags(varga: Chart, d1: Chart, kind: Literal["D9","D20","D60"]) -> Chart:
+def apply_varga_flags(varga: Chart, d1: Chart, kind: Literal["D9", "D10", "D20", "D60"]) -> Chart:
     """
     各分割図の惑星に対し、
       - retrograde: D1 の状態をコピー

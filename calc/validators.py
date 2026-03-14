@@ -240,7 +240,7 @@ def _validate_charts(charts: dict) -> dict:
             chart = _validate_chart_D1(chart)
         elif name == "D9":
             chart = _validate_chart_D9(chart)
-        elif name in ("D20", "D60"):
+        elif name in ("D10", "D20", "D60"):
             chart = _validate_chart_D20_or_D60(chart)
         else:
             # 未知の図は形式のみ軽く通し、空なら捨てる

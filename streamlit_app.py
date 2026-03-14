@@ -18,6 +18,7 @@ from calc.base import (
 )
 from calc.d1 import build_d1
 from calc.d9 import build_d9
+from calc.d10 import build_d10
 from calc.d20 import build_d20
 from calc.d60 import build_d60
 from calc.jaimini import assign_chara_karaka, karakamsa_sign_for_ak, arudha_lagna, upapada_lagna
@@ -71,6 +72,7 @@ LANG_DICT = {
         "minimize": "JSON出力を最小化（スペース・改行なし）",
         "d1": "D1 Rashi（基本）* 必須",
         "d9": "D9 Navamsa（本質層）",
+        "d10": "D10 Dasamsa（キャリア）",
         "d20": "D20 Vimsamsa（霊性層）",
         "d60": "D60 Shashtyamsa（カルマ層）",
         "preview": "プレビュー（JSON 内容確認）",
@@ -100,6 +102,7 @@ LANG_DICT = {
         "minimize": "Minimize JSON output (no spaces/newlines)",
         "d1": "D1 Rashi (Basic) * Required",
         "d9": "D9 Navamsa (Essence)",
+        "d10": "D10 Dasamsa (Career)",
         "d20": "D20 Vimsamsa (Spiritual)",
         "d60": "D60 Shashtyamsa (Karmic)",
         "preview": "Preview (JSON content)",
@@ -149,7 +152,7 @@ else:
     st.session_state["ck_mode"] = "8"
 
 # =======================================================
-# 2) ページ上部の余白/CSS・ヘッダー
+# 2) ページ上部の余白/CSS・ヘッダー（EN/JP 切り替えもここ）
 # =======================================================
 st.markdown("<style>.block-container {padding-top: 2rem;}</style>", unsafe_allow_html=True)
 
@@ -356,7 +359,8 @@ with st.expander(t("expander"), expanded=True):
     with c2:
         st.write(t("divisions"))
         include_d1 = st.checkbox(t("d1"), value=st.session_state.get("include_d1", True), key="include_d1")
-        include_d9 = st.checkbox(t("d9"), value=st.session_state.get("include_d9", True), key="include_d9")
+        include_d9 = st.checkbox(t("d9"), value=st.session_state.get("include_d9", True), key="include_d9")    
+        include_d10 = st.checkbox(t("d10"), value=st.session_state.get("include_d10", False), key="include_d10")
         include_d20 = st.checkbox(t("d20"), value=st.session_state.get("include_d20", False), key="include_d20")
         include_d60 = st.checkbox(t("d60"), value=st.session_state.get("include_d60", False), key="include_d60")
 
@@ -505,7 +509,10 @@ if go:
                 d9=cast(Optional[Chart], vargas.get("D9")),
             )
         )
-
+        
+        if include_d10:
+            # include_exaltation は現状未使用だが D20 に合わせて True 側に寄せておく
+            vargas["D10"] = cast(Chart, build_d10(asc_long, planets_long, include_exaltation=True))
         if include_d20:
             vargas["D20"] = cast(Chart, build_d20(asc_long, planets_long, include_exaltation=True))
         if include_d60:
@@ -515,6 +522,8 @@ if go:
             d1_chart: Chart = cast(Chart, vargas["D1"])
             if include_d9 and "D9" in vargas:
                 vargas["D9"] = apply_varga_flags(cast(Chart, vargas["D9"]), d1_chart, "D9")
+            if include_d10 and "D10" in vargas:
+                vargas["D10"] = apply_varga_flags(cast(Chart, vargas["D10"]), d1_chart, "D10")
             if include_d20 and "D20" in vargas:
                 vargas["D20"] = apply_varga_flags(cast(Chart, vargas["D20"]), d1_chart, "D20")
             if include_d60 and "D60" in vargas:

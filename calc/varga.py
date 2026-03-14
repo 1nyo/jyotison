@@ -35,6 +35,27 @@ def d9_sign_and_degree(long_deg: float) -> tuple[str, float]:
 
     return sign, deg
 
+def dasamsa_sign(long_deg: float) -> str:
+    """
+    Daśāṁśa (D10) — Parāśara式（JH \"D-10 (Trd)\" と整合）。
+    30°を3°×10に分割し、
+      - 奇数サイン (Ar, Ge, Le, Li, Sg, Aq) では、そのサイン自身を起点に順行
+      - 偶数サイン (Ta, Cn, Vi, Sc, Cp, Pi) では、そのサインから数えて9番目のサインを起点に順行
+    """
+    r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
+    din = deg_in_sign(long_deg)     # 0..30
+    part = int(din // 3.0)          # 0..9
+
+    # 奇数サイン: Ar, Ge, Le, Li, Sg, Aq
+    if r in (0, 2, 4, 6, 8, 10):
+        base = r
+    else:
+        # 偶数サイン: Ta, Cn, Vi, Sc, Cp, Pi → 9番目のサインを起点
+        base = (r + 8) % 12
+
+    si = (base + part) % 12
+    return SIGNS[si]
+
 def vimsamsa_sign(long_deg: float) -> str:
     """
     Vimśāṁśa (D20) — Parāśara系（JH “D-20 (Trd)” に一致）
