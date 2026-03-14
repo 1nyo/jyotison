@@ -21,7 +21,6 @@ from calc.d9 import build_d9
 from calc.d20 import build_d20
 from calc.d60 import build_d60
 from calc.jaimini import assign_chara_karaka, karakamsa_sign_for_ak, arudha_lagna, upapada_lagna
-from calc.varga import d9_sign_and_degree
 from calc.panchanga import tithi_info
 from calc.enrich import Chart, enrich_d1, apply_varga_flags
 
@@ -69,7 +68,7 @@ LANG_DICT = {
         "btn_generate": "AI向けJSONを生成（プレビュー）",
         "speed": "速度を出力に含む（retrograde 以外）",
         "lordship": "支配関係を出力に含む（lords/aspects）",
-        "minimize": "出力するJSONを最小化（スペース・改行なし）",
+        "minimize": "JSON出力を最小化（スペース・改行なし）",
         "d1": "D1 Rashi（基本）* 必須",
         "d9": "D9 Navamsa（本質層）",
         "d20": "D20 Vimsamsa（霊性層）",
