@@ -39,10 +39,12 @@ st.set_page_config(
 # =======================================================
 st.session_state.setdefault("lang", "EN")  # デフォルトは英語
 
-# （任意）URL クエリ (?lang=JP) があればそれを優先する
-params = st.query_params
-if "lang" in params and params["lang"] in ("EN", "JP"):
-    st.session_state.lang = params["lang"]
+# URLクエリからの初期化は「最初の 1 回だけ」にする
+if "lang_initialized_from_query" not in st.session_state:
+    params = st.query_params
+    if "lang" in params and params["lang"] in ("EN", "JP"):
+        st.session_state.lang = params["lang"]
+    st.session_state.lang_initialized_from_query = True
 
 # ---- 翻訳辞書 ----
 LANG_DICT = {
@@ -52,7 +54,7 @@ LANG_DICT = {
         "engine_swiss": "Swiss Ephemeris", "model_drik": "Drik（観測準拠）", "ref_lahiri": "Lahiri（サイデリアル）",
         "input_bd": "出生情報の入力",
         "name": "名前", "gender": "性別", "unknown": "不明", "male": "男性", "female": "女性",
-        "birth": "出生日", "birth_help": "YYYY/MM/DD 形式で入力，時は24時間制",
+        "birth": "出生日", "birth_help": "YYYY/MM/DD 形式で入力, 時は24時間制",
         "Hr": "時 (24H)", "Min": "分", "Sec": "秒",
         "geo": "出生地（初期値は東京）", "geo_paste": "Googleマップの座標を貼り付け",
         "geo_help": "右クリックでコピーした数値をそのまま貼り付けてください",
@@ -172,7 +174,7 @@ st.markdown(
 )
 
 # ヘッダー & 言語トグル
-col1, col2 = st.columns([0.8, 0.2])
+col1, col2 = st.columns([6, 1])
 with col1:
     st.markdown(
         f"""
@@ -194,6 +196,12 @@ with col2:
         horizontal=False,
         # label_visibility="collapsed"  # ← ラベル非表示でスッキリ
     )
+
+# EN が選ばれたときだけ ?lang を URL から消す
+if st.session_state.lang == "EN":
+    qp = st.query_params  # 直接操作する
+    if "lang" in qp:
+        del qp["lang"]
 
 # =======================================================
 # 3) Engine Info (Grid Layout)
@@ -226,6 +234,11 @@ def parse_latlon_any(s: str) -> tuple[float, float] | None:
         if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
             return lat, lon
     return None
+
+# 入力UIの直前（with st.container(border=True): の上でもOK）
+st.session_state.setdefault("lat", 35.68120)
+st.session_state.setdefault("lon", 139.76710)
+st.session_state.setdefault("tz", 9.0)
 
 # =======================================================
 # 4) 入力UI（全ウィジェットに固定 key、内部値固定＋format_func）
@@ -272,7 +285,7 @@ with st.container(border=True):
         res = parse_latlon_any(geo_paste)
         if res:
             default_lat, default_lon = res
-            # ここでセッションの lat/lon を更新しておくと、次の再実行で入力欄に反映されます
+            # セッションにだけセット（このランでは value を使わない）
             st.session_state["lat"] = default_lat
             st.session_state["lon"] = default_lon
             st.success(t("geo_success").format(default_lat=default_lat, default_lon=default_lon))
@@ -281,11 +294,32 @@ with st.container(border=True):
 
     g1, g2, g3 = st.columns([1, 1, 1])
     with g1:
-        geo_lat = st.number_input(t("lat"), value=st.session_state.get("lat", default_lat), min_value=-90.0, max_value=90.0, format="%.5f", key="lat")
+        # ❌ 旧: value=st.session_state.get("lat", default_lat)
+        # ✅ 新: value を渡さない（Session State に任せる）
+        geo_lat = st.number_input(
+            t("lat"),
+            min_value=-90.0,
+            max_value=90.0,
+            format="%.5f",
+            key="lat",
+        )
+
     with g2:
-        geo_lon = st.number_input(t("lon"), value=st.session_state.get("lon", default_lon), min_value=-180.0, max_value=180.0, format="%.5f", key="lon")
+        geo_lon = st.number_input(
+            t("lon"),
+            min_value=-180.0,
+            max_value=180.0,
+            format="%.5f",
+            key="lon",
+        )
+
     with g3:
-        tz_offset = st.number_input(t("tz"), value=st.session_state.get("tz", 9.0), step=0.5, format="%.1f", key="tz")
+        tz_offset = st.number_input(
+            t("tz"),
+            step=0.5,
+            format="%.1f",
+            key="tz",
+        )
 
     # 性別コード（内部値から変換）
     GENDER_MAP = {"unknown": "Unknown", "male": "Male", "female": "Female"}
