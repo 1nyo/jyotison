@@ -1,6 +1,7 @@
 # calc/validators.py
 from __future__ import annotations
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 # ------------------------------
@@ -54,53 +55,95 @@ from typing import Any, Dict, List
 
 def pretty_json_inline_lists(obj: Dict, indent: int = 2) -> str:
     """
-    - 通常の dict は改行＋インデント。
-    - 通常の list は 1行。
-    - ただし dasha の以下キーだけは、配列を複数行で表示（各要素は1行 or 再帰構造）：
-        - dasha.full_sequence_maha
-        - dasha.current_context.current_sequence （MDブロック配列）
-        - dasha.current_context.current_sequence[*].antar （各MD内のAD配列）
-        - （旧形式を併用している場合）dasha.current_context.antar_sequence も対象
-    - さらに、複数行配列の各要素が dict の場合でも、
-        * その dict の値に 'YYYY-MM-DD' が含まれていれば、その dict は 1行で出力する
-          （例：{"lord":"Sa","start":"2025-02-18","label":"current"} は1行）
+    JSON を人間向けに整形するプリティプリンタ。
+
+    特別仕様：
+    ----------------------------------------------------------
+    ◆ charts.D3〜D60 の
+        - Asc
+        - planets.*（各惑星）
+       の dict を 1 行 JSON にまとめる（compact）
+
+    ◆ 上記以外の dict は従来どおり multi-line
+
+    ◆ dasha 配下は従来の multi-line / inline ルールを維持
+    ----------------------------------------------------------
     """
 
-    # dasha配下で複数行にしたい配列キー
-    SPECIAL_LIST_KEYS = {"full_sequence_maha", "current_sequence", "antar", "antar_sequence"}
+    # dasha 配下で複数行にしたい配列キー
+    SPECIAL_LIST_KEYS = {
+        "full_sequence_maha",
+        "current_sequence",
+        "antar",
+        "antar_sequence",
+    }
 
     # yyyy-mm-dd 判定用
     DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+    # charts で 1 行にまとめたい Varga
+    TARGET_VARGAS = {
+        "D3", "D4", "D7", "D10", "D12", "D16",
+        "D20", "D24", "D30", "D60",
+    }
+
     def dict_contains_dateish(d: Dict[str, Any]) -> bool:
-        """dict の値のいずれかが 'YYYY-MM-DD' に合致すれば True"""
         for v in d.values():
             if isinstance(v, str) and DATE_RE.match(v):
                 return True
         return False
 
-    def dump_list_one_line(lst: List[Any]) -> str:
-        # 通常の配列は 1 行
-        return json.dumps(lst, ensure_ascii=False, separators=(",", ":"))
+    # ----------------------------------------------------------
+    # charts.D3〜D60 の Asc / planets.* 判定
+    # ----------------------------------------------------------
+    def is_compact_varga_dict(path: List[str], value: Any) -> bool:
+        """
+        charts.D3〜D60 の:
+          - Asc（charts.D3.Asc）
+          - planets.Su, planets.Mo ...（charts.D3.planets.Su）
+        の dict を 1 行に潰すかどうか判定。
+        """
+        if not isinstance(value, dict):
+            return False
+        if len(path) < 3:
+            return False
 
-    def dump_list_multiline(lst: List[Any], level: int, *, inside_dasha: bool) -> str:
-        """
-        配列を複数行で出力：
-          - 要素が dict の場合:
-              * 値に 'YYYY-MM-DD' を含む → 1行JSON に潰す（読みやすさのため）
-              * 含まない → 再帰的に dump_dict（中の配列も複数行整形の対象）
-          - 要素が非 dict の場合 → 1行JSON
-        例：
-          [
-            {"lord":"Sa","start":"2025-..","end":".."},      ← 値に日付 → 1行
-            { "maha_lord":"Sa",
-              "antar":[ ... 複数行 ... ]                    ← 再帰整形
-            }
-          ]
-        """
+        # ["charts", "D3", "Asc"] や ["charts", "D3", "planets", "Su"] を想定
+        if path[0] != "charts":
+            return False
+
+        varga = path[1]
+        if varga not in TARGET_VARGAS:
+            return False
+
+        # charts.D3.Asc
+        if len(path) == 3 and path[2] == "Asc":
+            return True
+
+        # charts.D3.planets.Su
+        if len(path) == 4 and path[2] == "planets":
+            planet_key = path[3]
+            if isinstance(planet_key, str) and planet_key.isalpha() and 1 <= len(planet_key) <= 3:
+                return True
+
+        return False
+
+    # ----------------------------------------------------------
+    # 以下、path-aware な pretty printer 本体
+    # ----------------------------------------------------------
+    def dump_list_one_line(lst: List[Any]) -> str:
+        return json.dumps(lst, ensure_ascii=False)
+
+    def dump_list_multiline(
+        lst: List[Any],
+        level: int,
+        *,
+        inside_dasha: bool,
+        path: List[str],
+    ) -> str:
         if not lst:
             return "[]"
-        pad  = " " * (indent * level)
+        pad = " " * (indent * level)
         pad2 = " " * (indent * (level + 1))
         lines = []
         for item in lst:
@@ -108,41 +151,69 @@ def pretty_json_inline_lists(obj: Dict, indent: int = 2) -> str:
                 if dict_contains_dateish(item):
                     s = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
                 else:
-                    s = dump_dict(item, level + 1, inside_dasha=inside_dasha)
+                    # 配列の中の dict → path に "*" を追加して再帰
+                    s = dump_dict(item, level + 1, inside_dasha=inside_dasha, path=path + ["*"])
             else:
                 s = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
             lines.append(f"{pad2}{s}")
         return "[\n" + ",\n".join(lines) + f"\n{pad}]"
 
-    def dump_value(v: Any, level: int, parent_key: str = "", *, inside_dasha: bool = False) -> str:
+    def dump_value(
+        v: Any,
+        level: int,
+        *,
+        inside_dasha: bool,
+        path: List[str],
+    ) -> str:
+        # dict
         if isinstance(v, dict):
-            return dump_dict(v, level, inside_dasha=inside_dasha)
+            # charts.D3〜D60 の Asc / planets.* は 1 行にまとめる
+            if is_compact_varga_dict(path, v):
+                return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
+            return dump_dict(v, level, inside_dasha=inside_dasha, path=path)
+
+        # list
         elif isinstance(v, list):
-            # dasha 配下 かつ 対象キー のときだけ配列を複数行へ
-            if inside_dasha and parent_key in SPECIAL_LIST_KEYS:
-                return dump_list_multiline(v, level, inside_dasha=inside_dasha)
+            # dasha 配下かつ SPECIAL_LIST_KEYS のときだけ multi-line
+            if inside_dasha and path and path[-1] in SPECIAL_LIST_KEYS:
+                return dump_list_multiline(v, level, inside_dasha=inside_dasha, path=path)
             return dump_list_one_line(v)
+
+        # その他（文字列・数値など）
         else:
             return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
 
-    def dump_dict(d: dict, level: int, *, inside_dasha: bool) -> str:
+    def dump_dict(
+        d: dict,
+        level: int,
+        *,
+        inside_dasha: bool,
+        path: List[str],
+    ) -> str:
         if not d:
             return "{}"
-        pad  = " " * (indent * level)
+        pad = " " * (indent * level)
         pad2 = " " * (indent * (level + 1))
         parts = []
         for k, v in d.items():
-            key = json.dumps(k, ensure_ascii=False)
-            # 「dasha」キーに入ったら、その配下は inside_dasha=True を伝播
-            next_inside_dasha = inside_dasha or (k == "dasha")
-            parts.append(f"{pad2}{key}: {dump_value(v, level + 1, parent_key=k, inside_dasha=next_inside_dasha)}")
-        return "{\n" + ",\n".join(parts) + f"\n{pad}" + "}"
+            key_str = json.dumps(k, ensure_ascii=False)
+            next_inside = inside_dasha or (k == "dasha")
+            full_path = path + [k]  # ← このキーまでのフルパス
+            val_str = dump_value(
+                v,
+                level + 1,
+                inside_dasha=next_inside,
+                path=full_path,
+            )
+            parts.append(f"{pad2}{key_str}: {val_str}")
+        return "{\n" + ",\n".join(parts) + f"\n{pad}}}"
 
-    # ルート（dict想定）
+    # ----------------------------------------------------------
+    # ルート
+    # ----------------------------------------------------------
     if isinstance(obj, dict):
-        return dump_dict(obj, 0, inside_dasha=False)
+        return dump_dict(obj, 0, inside_dasha=False, path=[])
     elif isinstance(obj, list):
-        # 念のため：トップレベルが配列でも1行
         return dump_list_one_line(obj)
     else:
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
@@ -210,11 +281,11 @@ def _validate_chart_D9(d: dict) -> dict:
                 rec["degree"] = validate_degree_0_30(rec["degree"])
     return d
 
-def _validate_chart_D20_or_D60(d: dict) -> dict:
+def _validate_chart_varga_generic(d: dict) -> dict:
     """
-    D20/D60 検証：
-    - 通常 degree は持たない前提なので house のみ検証。
-    - （万一 degree があっても黙って通す or 必要に応じて抑制）
+    D3, D4, D7, D10, D12, D16, D20, D24, D30, D60 （すべて共通）
+    - degree は検証しない（存在しても黙認）
+    - house だけを検証する
     """
     if isinstance(d.get("planets"), dict):
         for p, rec in list(d["planets"].items()):
@@ -227,26 +298,31 @@ def _validate_chart_D20_or_D60(d: dict) -> dict:
 
 def _validate_charts(charts: dict) -> dict:
     """
-    charts 連想（{"D1": {...}, "D9": {...}, ...}）を検証し、
-    空チャートは削除して返す。
+    charts 連想（{"D1": {...}, "D9": {...}, ...}）を検証し、空チャートを削除。
     """
+
+    GENERIC_VARGAS = {
+        "D3", "D4", "D7", "D10", "D12",
+        "D16", "D20", "D24", "D30", "D60"
+    }
+
     out: Dict[str, dict] = {}
+
     for name, chart in list(charts.items()):
         if not isinstance(chart, dict):
             continue
 
-        # チャート別検証
+        # ---- 分割図ごとの検証 ----
         if name == "D1":
             chart = _validate_chart_D1(chart)
+
         elif name == "D9":
             chart = _validate_chart_D9(chart)
-        elif name in ("D10", "D20", "D60"):
-            chart = _validate_chart_D20_or_D60(chart)
-        else:
-            # 未知の図は形式のみ軽く通し、空なら捨てる
-            pass
 
-        # 空なら残さない
+        elif name in GENERIC_VARGAS:
+            chart = _validate_chart_varga_generic(chart)
+
+        # ---- 空チャートは削除 ----
         if _is_nonempty_chart(chart):
             out[name] = chart
 
@@ -265,11 +341,13 @@ def prune_and_validate(out: Dict) -> Dict:
     """
     out = prune_bools(out)
 
-    # 旧仕様の名残（トップレベルに D1/D9/D20/D60 を生やしてしまう実装）を排除
-    for k in ("D1", "D9", "D20", "D60"):
+    # 旧仕様の名残を削除（トップレベルに Dチャートが出てしまうバグの除去）
+    ALL_VARGAS = {
+        "D1", "D3", "D4", "D7", "D9", "D10", "D12",
+        "D16", "D20", "D24", "D30", "D60"
+    }
+    for k in ALL_VARGAS:
         if k in out:
-            v = out.get(k)
-            # charts 側に中身があるなら捨て、そうでなければ何もせず除去
             out.pop(k, None)
 
     # charts 配下の検証

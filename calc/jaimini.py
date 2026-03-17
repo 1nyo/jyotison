@@ -9,7 +9,7 @@ from .varga import d9_sign_and_degree
 # ------------------------------------------------------------
 
 KARAKAS_8 = ["AK", "AmK", "BK", "MK", "PiK", "PK", "GK", "DK"]
-KARAKAS_7 = ["AK", "AmK", "BK", "MK",          "PK", "GK", "DK"]  # PiK を除外
+KARAKAS_7 = ["AK", "AmK", "BK", "MK",        "PK", "GK", "DK"]  # PiK を除外
 
 # タイブレークの安定順（完全一致時の最終決定）
 TIEBREAK_PLANET_ORDER = ["Su", "Mo", "Ma", "Me", "Ju", "Ve", "Sa", "Ra"]
