@@ -1,6 +1,8 @@
 # streamlit_app.py
 import json
+from timezonefinder import TimezoneFinder
 from datetime import date, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional, cast, Literal
 import re
 
@@ -58,16 +60,20 @@ LANG_DICT = {
 
         # Input
         "input_bd": "出生情報の入力",
-        "name": "名前", "gender": "性別", "unknown": "不明", "male": "男性", "female": "女性",
+        "name": "名前", "gender": "性別", "choose": "選択...",
+        "male": "男性", "female": "女性",
         "birth": "出生日", "birth_help": "YYYY/MM/DD 形式で入力, 時は24時間制",
         "Hr": "時 (24H)", "Min": "分", "Sec": "秒",
-        "geo": "出生地（初期値は東京）",
-        "geo_paste": "Googleマップの座標を貼り付け",
-        "geo_help": "右クリックでコピーした数値をそのまま貼り付けてください",
-        "geo_ph": "例: 35.6812, 139.7671",
+        "geo": "出生地", "geo_gmap": "（初期値は東京）座標取得先（推奨）：",
+        "gmap": "Googleマップ",
+        "geo_paste": ":material/location_on: Googleマップの座標を貼り付け",
+        "geo_help": "地点を右クリックして出現した数値をクリックしてコピーし、そのままここに貼り付けてください",
+        "geo_ph": "例: 35.6812, 139.7671", "geo_clear": "貼り付けた場所をクリア",
         "geo_success": "座標を認識しました: 緯度 {default_lat} / 経度 {default_lon}",
         "geo_error": "無効な座標形式です。35.123, 139.456 のような数値を入力してください。",
-        "lat": "緯度（北緯+）", "lon": "経度（東経+）", "tz": "UTCオフセット",
+        "lat": "緯度（北緯+）", "lon": "経度（東経+）",
+        "tz": "UTCオフセット", "tz_auto": "（自動認識）",
+        "tz_help": "手動で修正が必要な場合は貼り付け座標をクリアしてください。",
 
         # Output Settings
         "output_settings": "出力方法の設定",
@@ -91,7 +97,7 @@ LANG_DICT = {
         "node_true": "True Node（真）",
 
         # Chara Karaka
-        "ck_mode": "Chara Karaka",
+        "ck_mode": "チャラ・カーラカ",
         "ck_8": "8（Rahu含む）",
         "ck_7": "7（Rahu除外）",
 
@@ -99,14 +105,14 @@ LANG_DICT = {
         "minimize": "JSON出力を最小化（スペース・改行なし）",
 
         # D1 detail groups
-        "d1_interactions": "🔷 関係性",
-        "d1_motion": "⚡ 惑星運動",
-        "d1_conditions": "🔶 惑星状態",
-        "d1_special": "✴ 特殊配置",
+        "d1_interactions": "関係性",
+        "d1_motion": "惑星運動",
+        "d1_conditions": "惑星状態",
+        "d1_special": "特殊配置",
 
         # D1 detail options
         "chk_nak_lord": "ナクシャトラロード",
-        "chk_aspects": "アスペクト (グラハ・ドリシュティ)",
+        "chk_aspects": "アスペクト（グラハ・ドリシュティ）",
         "chk_conjunctions": "コンジャンクション",
         "chk_speed_status": "速度の特異値（高速/低速/停止）",
         "chk_combust": "コンバスト",
@@ -154,15 +160,20 @@ LANG_DICT = {
 
         # Input
         "input_bd": "Input Birth Details",
-        "name": "Name", "gender": "Gender", "unknown": "Unknown", "male": "Male", "female": "Female",
+        "name": "Name", "gender": "Gender", "choose": "Choose...",
+        "male": "Male", "female": "Female",
         "birth": "Birth Date", "birth_help": "Enter date in YYYY/MM/DD format, time in 24-hour format",
         "Hr": "Hour (24H)", "Min": "Minute", "Sec": "Second",
-        "geo": "Birth Place (Default: Tokyo)", "geo_paste": "Paste Google Map Coordinates",
-        "geo_help": "Right-click to copy the values and paste them directly",
-        "geo_ph": "e.g. 35.6812, 139.7671",
+        "geo": "Birth Place", "geo_gmap": "(Default: Tokyo) Get coordinates from ",
+        "gmap": "Google Maps",
+        "geo_paste": ":material/location_on: Paste Google Map Coordinates",
+        "geo_help": "Copy the numbers that appear when you right-click on a location and paste them here",
+        "geo_ph": "e.g. 35.6812, 139.7671", "geo_clear": "Clear pasted location",
         "geo_success": "Coordinates recognized: Latitude {default_lat} / Longitude {default_lon}",
         "geo_error": "Invalid coordinate format. Please enter numbers like 35.123, 139.456.",
-        "lat": "Latitude (North +)", "lon": "Longitude (East +)", "tz": "UTC Offset",
+        "lat": "Latitude (North +)", "lon": "Longitude (East +)",
+        "tz": "UTC Offset", "tz_auto": "(Auto-detected)",
+        "tz_help": "If you need to adjust manually, please clear the pasted coordinates.",
 
         # Output
         "output_settings": "Output Settings",
@@ -194,10 +205,10 @@ LANG_DICT = {
         "minimize": "Minimize JSON output (no spaces/newlines)",
 
         # D1 detail groups
-        "d1_interactions": "🔷 Interactions",
-        "d1_motion": "⚡ Planet Motion",
-        "d1_conditions": "🔶 Planet Conditions",
-        "d1_special": "✴ Special Positions",
+        "d1_interactions": "Interactions",
+        "d1_motion": "Planet Motion",
+        "d1_conditions": "Planet Conditions",
+        "d1_special": "Special Positions",
 
         # D1 detail options
         "chk_nak_lord": "Nakshatra Lord",
@@ -247,36 +258,124 @@ def t(key: str) -> str:
     return LANG_DICT[lang][key]
 
 # 初期値の保証（まだ何も入っていない場合のデフォルト）
-st.session_state.setdefault("gender", "unknown")
+st.session_state.setdefault("gender", None)
 st.session_state.setdefault("node_type", "True")
 
-# ck_mode: 内部表現は常に "8" or "7"
-ck = st.session_state.get("ck_mode", "8")
+# ck_mode は内部表現は常に "8" or "7"
+st.session_state.setdefault("ck_mode", "8")
 
 # 何が来ても最終的には "8"/"7" に丸める
-if ck in ("8", "7"):
-    st.session_state["ck_mode"] = ck
-elif ck in (8, 7):
-    st.session_state["ck_mode"] = "7" if ck == 7 else "8"
-else:
-    # 想定外の値なら "8" にフォールバック
-    st.session_state["ck_mode"] = "8"
+ck = st.session_state["ck_mode"]
+if ck in (8, 7):
+    ck = "7" if ck == 7 else "8"
+elif ck not in ("8", "7"):
+    ck = "8"
+st.session_state["ck_mode"] = ck
+
+# ------------------------------------------------------------
+# Timezone auto-detect (cached + compute only when needed)
+# ------------------------------------------------------------
+
+@st.cache_resource
+def _get_tz_finder() -> TimezoneFinder:
+    """TimezoneFinder は初期化が重いので 1 セッションで使い回す。"""
+    return TimezoneFinder()
+
+@st.cache_data(show_spinner=False)
+def _tz_name_from_latlon_cached(lat4: float, lon4: float) -> str | None:
+    """
+    (lat, lon) -> tz_name をキャッシュ。
+    入力の微小変化でキャッシュが無駄に増えないよう、呼び出し側で round する。
+    """
+    tf = _get_tz_finder()
+    return tf.timezone_at(lat=lat4, lng=lon4)
+
+def get_tz_name(lat: float, lon: float) -> str | None:
+    """外部公開用：丸めてからキャッシュ関数へ。"""
+    return _tz_name_from_latlon_cached(round(lat, 4), round(lon, 4))
+
+def get_utc_offset_hours(tz_name: str, dt: datetime) -> float | None:
+    """tz_name と dt から offset(hours) を返す。取れない場合 None。"""
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        return None
+
+    offset_td = dt.astimezone(tz).utcoffset()
+    if offset_td is None:
+        return None
+    return offset_td.total_seconds() / 3600.0
+
+def recompute_tz_if_dirty(birth_dt: datetime) -> None:
+    """
+    tz_dirty が True の時だけ timezonefinder を呼び、
+    tz_name / tz(UTC offset) を session_state に更新する。
+    """
+    if not st.session_state.get("tz_dirty", True):
+        return
+
+    lat = float(st.session_state.get("lat", 0.0))
+    lon = float(st.session_state.get("lon", 0.0))
+
+    tz_name = get_tz_name(lat, lon)
+    st.session_state["tz_name"] = tz_name or "Unknown"
+    st.session_state["tz_dst"] = None  # 初期化
+
+    if tz_name:
+        try:
+            tz = ZoneInfo(tz_name)
+            aware_dt = birth_dt.astimezone(tz)
+
+            offset_td = aware_dt.utcoffset()
+            if offset_td is not None:
+                st.session_state["tz"] = offset_td.total_seconds() / 3600
+
+            # DST 判定
+            dst_td = aware_dt.dst()
+            if dst_td is not None and dst_td.total_seconds() > 0:
+                st.session_state["tz_dst"] = True
+            else:
+                st.session_state["tz_dst"] = False
+            
+            # 自動計算が走ったら Auto に戻す
+            st.session_state["tz_mode"] = "auto"
+
+        except Exception:
+            pass
+    # 計算済みにする（以後、lat/lon が変わるまで再計算しない）
+    st.session_state["tz_dirty"] = False
+
+def mark_tz_dirty() -> None:
+    """Birth D/H/M/S, lat/lon が変わったら True にするための on_change 用。"""
+    st.session_state["tz_dirty"] = True
+
+def clear_geo_paste():
+    # 貼り付け欄をクリア
+    st.session_state["geo_paste"] = ""
+
+    # クリアしたら「自動貼付モード」を解除したいなら dirty を落とす
+    # ※この挙動は好み：手動編集に戻したいなら False が自然
+    st.session_state["tz_dirty"] = False
+
+def on_tz_manual_change():
+    # ユーザーが UTC オフセットを手動変更した
+    st.session_state["tz_mode"] = "manual"
 
 # -------------------------------------------------------
 # Output Presets (Basic / Standard / Advanced / Custom)
 # -------------------------------------------------------
 
-# プリセットが制御するキー（Varga + D1 詳細 + Varga 出力）
+# プリセットが制御するキー（VD1 詳細 + arga + Varga 出力）
 PRESET_KEYS = [
-    # Varga includes
-    "include_d1", "include_d3", "include_d4", "include_d7", "include_d9",
-    "include_d10", "include_d12", "include_d16", "include_d20",
-    "include_d24", "include_d30", "include_d60",
-
     # D1 output details
     "opt_nak_lord", "opt_aspects", "opt_conjunctions", "opt_speed_status",
     "opt_dig_bala", "opt_combust", "opt_planet_war", "opt_dignity_det",
     "opt_vargottama", "opt_gandanta",
+
+    # Varga includes
+    "include_d1", "include_d3", "include_d4", "include_d7", "include_d9",
+    "include_d10", "include_d12", "include_d16", "include_d20",
+    "include_d24", "include_d30", "include_d60",
 
     # Varga output options
     "varga_d9_degree", "varga_dignity",
@@ -284,6 +383,18 @@ PRESET_KEYS = [
 
 PRESETS: dict[str, dict[str, bool]] = {
     "Basic": {
+        # --- D1 Details ---
+        "opt_nak_lord": False,
+        "opt_aspects": False,
+        "opt_conjunctions": False,
+        "opt_speed_status": False,
+        "opt_dig_bala": False,
+        "opt_combust": True,        # ← ここだけ ON（あなたの方針を踏襲）
+        "opt_planet_war": False,
+        "opt_dignity_det": False,
+        "opt_vargottama": False,
+        "opt_gandanta": False,
+
         # --- Varga ---
         "include_d1": True,
         "include_d9": True,
@@ -298,24 +409,24 @@ PRESETS: dict[str, dict[str, bool]] = {
         "include_d30": False,
         "include_d60": False,
 
-        # --- D1 Details ---
-        "opt_nak_lord": False,
-        "opt_aspects": False,
-        "opt_conjunctions": False,
-        "opt_speed_status": False,
-        "opt_dig_bala": False,
-        "opt_combust": True,        # ← ここだけ ON（あなたの方針を踏襲）
-        "opt_planet_war": False,
-        "opt_dignity_det": False,
-        "opt_vargottama": False,
-        "opt_gandanta": False,
-
         # --- Varga Output ---
         "varga_d9_degree": False,
         "varga_dignity": False,
     },
 
     "Standard": {
+        # --- D1 Details ---
+        "opt_nak_lord": True,
+        "opt_aspects": True,
+        "opt_conjunctions": True,
+        "opt_speed_status": False,
+        "opt_dig_bala": False,
+        "opt_combust": True,
+        "opt_planet_war": False,
+        "opt_dignity_det": True,
+        "opt_vargottama": True,
+        "opt_gandanta": True,
+
         # --- Varga ---
         "include_d1": True,
         "include_d9": True,
@@ -329,18 +440,6 @@ PRESETS: dict[str, dict[str, bool]] = {
         "include_d16": False,
         "include_d24": False,
         "include_d30": False,
-
-        # --- D1 Details ---
-        "opt_nak_lord": True,
-        "opt_aspects": True,
-        "opt_conjunctions": True,
-        "opt_speed_status": False,
-        "opt_dig_bala": False,
-        "opt_combust": True,
-        "opt_planet_war": False,
-        "opt_dignity_det": True,
-        "opt_vargottama": True,
-        "opt_gandanta": True,
 
         # --- Varga Output ---
         "varga_d9_degree": True,
@@ -426,14 +525,14 @@ st.markdown("<style>.block-container {padding-top: 2rem;}</style>", unsafe_allow
 st.markdown(
     """
     <style>
-    .header-container {text-align: center; padding: 1.5rem 0 2rem 0; font-family: 'Inter', 'sans-serif';}
+    .header-container {text-align: center; padding: 0 0 1.5rem 0; font-family: 'Inter', 'sans-serif';}
     .logo-text {font-size: 4rem; font-weight: 800; letter-spacing: -2px; margin-bottom: 0; line-height: 1;}
     .yoti {opacity: 0.5; font-weight: 500; letter-spacing: -4px; padding: 0 2px;}
-    .version-text { font-size: 1rem; vertical-align: super; opacity: 0.5; margin-left: 5px; position: relative; top: -0.8rem; font-weight: 400; letter-spacing: 0; }
+    .version-text { font-size: 1rem; vertical-align: super; opacity: 0.5; margin-left: 2px; position: relative; top: -0.8rem; font-weight: 400; letter-spacing: 0; }
     .subtitle-text {font-size: 1rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
         opacity: 0.7; margin-top: 0.9rem;}
     /* st.caption の下の余白を削る */
-    div[data-testid="stCode"] code {font-size: 0.8rem !important;}
+    div[data-testid="stCode"] code {font-size: 0.8rem;}
     div[data-testid="stExpander"], div.stInfo {border: none;
         border-radius: 10px;
         background-color: rgba(128, 128, 128, 0.05);
@@ -450,16 +549,13 @@ with col1:
         f"""
         <div class="header-container">
           <div class="logo-text">J<span class="yoti">yoti</span>SON
-          <span class="version-text">v1.0</span></div>
+          <span class="version-text">v1.1</span></div>
           <div class="subtitle-text">{t('subtitle')}</div>
         </div>
         """,
         unsafe_allow_html=True
     )
 with col2:
-    # ロゴ高さに合わせた余白
-    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-
     st.radio(
         label="Language",
         options=["EN", "JP"],
@@ -477,15 +573,19 @@ if "lang" in qp and qp["lang"] != st.session_state.lang:
 # 3) Engine Info (Grid Layout)
 # =======================================================
 empty_l, c1, c2, c3, empty_r = st.columns([0.5, 2, 2, 2, 0.5])
+
 with c1:
-    st.caption(f"⚙️ **{t('engine')}**")
-    st.code(f"{t('engine_swiss')}", language=None)
+    st.caption(f":material/settings: **{t('engine')}**")
+    st.code(t("engine_swiss"), language=None)
+
 with c2:
-    st.caption(f"🔬 **{t('model')}**")
-    st.code(f"{t('model_drik')}", language=None)
+    st.caption(f":material/science: **{t('model')}**")
+    st.code(t("model_drik"), language=None)
+
 with c3:
-    st.caption(f"📍 **{t('ref')}**")
-    st.code(f"{t('ref_lahiri')}", language=None)
+    st.caption(f":material/public: **{t('ref')}**")
+    st.code(t("ref_lahiri"), language=None)
+
 
 # --- Googleマップ貼り付け文字列の汎用パーサ（最初の2つの浮動小数を抽出） ---
 
@@ -513,27 +613,41 @@ st.session_state.setdefault("tz", 9.0)
 # =======================================================
 # 4) 入力UI（全ウィジェットに固定 key、内部値固定＋format_func）
 # =======================================================
-st.subheader(t("input_bd"))
+st.subheader(
+    f":material/assignment_ind: {t('input_bd')}"
+    )
 with st.container(border=True):
-    a1, a2 = st.columns([1.4, 1])
+    a1, a2, = st.columns([1.5, 1])
     with a1:
         user_name = st.text_input(t("name"), value=(st.session_state.get("name") or "Guest"), key="name") or "Guest"
+
     with a2:
-        # 既存の内部 gender を取得（なければ "unknown"）
-        internal_gender = st.session_state.get("gender", "unknown")
+        lang = st.session_state.get("lang", "EN")
+        gender_widget_key = f"gender_ui_{lang}"
 
-        # 言語ごとに widget の key を変える（再描画を強制するため）
-        gender_widget_key = f"gender_{st.session_state.get('lang', 'EN')}"
+        # 言語切替を検知（popしない）
+        prev_lang = st.session_state.get("_prev_lang_for_gender")
+        if prev_lang != lang:
+            # 内部値がある場合だけ、新言語側のkeyへ事前注入（ウィジェット生成前なのでOK）
+            if st.session_state.get("gender") in ("male", "female"):
+                st.session_state[gender_widget_key] = st.session_state["gender"]
+            else:
+                # 未選択なら新言語側も未選択に（既存値が残っていたら消す）
+                st.session_state.pop(gender_widget_key, None)
 
-        gender = st.selectbox(
+            st.session_state["_prev_lang_for_gender"] = lang
+
+        # index=None 固定：クリア（○×）が効く状態を維持 [1](https://docs.streamlit.io/develop/concepts/architecture/widget-behavior)[2](https://stackoverflow.com/questions/78625588/streamlitapiexception-st-session-state-user-question-cannot-be-modified-after-t)
+        gender_ui = st.selectbox(
             t("gender"),
-            options=["unknown", "male", "female"],          # 内部キー固定
-            format_func=lambda k: t(k),                     # 表示だけ翻訳
-            key=gender_widget_key,                          # 言語ごとに別 widget として扱う
-            index=["unknown", "male", "female"].index(internal_gender),
+            options=["male", "female"],
+            index=None,
+            key=gender_widget_key,
+            format_func=lambda k: t(k),
+            placeholder=t("choose"),
         )
-        # UIの選択結果を共通の内部キー "gender" に同期
-        st.session_state["gender"] = gender
+
+        st.session_state["gender"] = gender_ui
 
     b1, b2, b3, b4 = st.columns([1.8, 1, 1, 1])
     with b1:
@@ -543,213 +657,299 @@ with st.container(border=True):
             min_value=date(1, 1, 1),
             max_value=date(2999, 12, 31),
             key="birth_date",
+            on_change=mark_tz_dirty,  # 日付が変わったら tz_dirty を True にする
         )
     with b2:
-        h = st.number_input(t("Hr"), min_value=0, max_value=23, value=st.session_state.get("hour", 12), step=1, key="hour")
+        h = st.number_input(t("Hr"), min_value=0, max_value=23, value=st.session_state.get("hour", 12), step=1, key="hour", on_change=mark_tz_dirty)
     with b3:
-        m = st.number_input(t("Min"), min_value=0, max_value=59, value=st.session_state.get("min", 0), step=1, key="min")
+        m = st.number_input(t("Min"), min_value=0, max_value=59, value=st.session_state.get("min", 0), step=1, key="min", on_change=mark_tz_dirty)
     with b4:
-        s = st.number_input(t("Sec"), min_value=0, max_value=59, value=st.session_state.get("sec", 0), step=1, key="sec")
+        s = st.number_input(t("Sec"), min_value=0, max_value=59, value=st.session_state.get("sec", 0), step=1, key="sec", on_change=mark_tz_dirty)
 
-    st.write(t("geo"))
-    geo_paste = st.text_input(
-        t("geo_paste"),
-        placeholder=t("geo_ph"),
-        help=t("geo_help"),
-        key="geo_paste",
+    st.markdown(
+    f"""
+    {t("geo")} <span style="font-size:0.85rem;">{t('geo_gmap')}
+    <a href="https://www.google.com/maps" target="_blank">
+    :material/open_in_new: {t("gmap")}</a>
+    </span>
+    """,
+    unsafe_allow_html=True,
     )
 
-    default_lat, default_lon = 35.68120, 139.76710
+    # ① 入力行
+    g1, g2, g3, g4 = st.columns([5, 0.9, 2.9, 3])
+
+    with g1:
+        geo_paste = st.text_input(
+            t("geo_paste"),
+            placeholder=t("geo_ph"),
+            help=t("geo_help"),
+            key="geo_paste",
+        )
+
+    with g2:
+        # 貼り付け欄の右にクリアボタンを配置
+        st.markdown("<div style='height: 1.8rem'></div>", unsafe_allow_html=True)
+        st.button("✕", help=t("geo_clear"), on_click=clear_geo_paste)
+
+    # ② メッセージ表示用（横幅フル：columns の外に置く）
+    geo_msg = st.empty()
+
+    # ③ ここで「先に」貼り付けを処理して lat/lon を session_state に反映する
+    #    ※ lat/lon ウィジェットを作る前なので Streamlit に怒られない
     if geo_paste:
         res = parse_latlon_any(geo_paste)
         if res:
-            default_lat, default_lon = res
-            # セッションにだけセット（このランでは value を使わない）
-            st.session_state["lat"] = default_lat
-            st.session_state["lon"] = default_lon
-            st.success(t("geo_success").format(default_lat=default_lat, default_lon=default_lon))
+            pasted_lat, pasted_lon = res
+            st.session_state["lat"] = pasted_lat
+            st.session_state["lon"] = pasted_lon
+            st.session_state["tz_dirty"] = True
+            geo_msg.success(t("geo_success").format(default_lat=pasted_lat, default_lon=pasted_lon))
         else:
-            st.error(t("geo_error"))
+            geo_msg.error(t("geo_error"))
+    else:
+        geo_msg.empty()
 
-    g1, g2, g3 = st.columns([1, 1, 1])
-    with g1:
-        # ❌ 旧: value=st.session_state.get("lat", default_lat)
-        # ✅ 新: value を渡さない（Session State に任せる）
+    # tz 自動計算のための dirty フラグ（なければ True で初期化）
+    st.session_state.setdefault("tz_dirty", True)
+    st.session_state.setdefault("tz_name", "Unknown")
+
+    # ④ lat/lon のウィジェットは「貼り付け処理の後」に作る（ここが重要）
+    with g3:
         geo_lat = st.number_input(
             t("lat"),
             min_value=-90.0,
             max_value=90.0,
             format="%.5f",
             key="lat",
+            on_change=mark_tz_dirty,
         )
 
-    with g2:
+    with g4:
         geo_lon = st.number_input(
             t("lon"),
             min_value=-180.0,
             max_value=180.0,
             format="%.5f",
             key="lon",
+            on_change=mark_tz_dirty,
         )
 
-    with g3:
+
+    # tz 自動計算（ウィジェット生成前）
+    birth_dt = datetime(
+        year=birth_date.year,
+        month=birth_date.month,
+        day=birth_date.day,
+        hour=h, minute=m, second=s
+    )
+    recompute_tz_if_dirty(birth_dt)
+
+    # ---- UTC offset / TZ 表示（1行） ----
+    tz_l, tz_i, tz_r = st.columns([1, 1.1, 3])
+
+    with tz_l:
+            st.markdown(
+                f":material/public: "
+                f"<span title='{t('tz_help')}' style='font-size:0.9rem; cursor: help;'>"
+                f"{t('tz')}"
+                f"</span>"
+                f"<div style='margin-top: -24px;'>"  # ← ここで上の行との間隔を詰める
+                f"<span style='font-size:0.85rem; color:gray; margin-left: 1rem;'>"
+                f"{t('tz_auto')}"
+                f"</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    with tz_i:
+        # UTCオフセットの入力（自動計算された値が初期値として入る）
         tz_offset = st.number_input(
-            t("tz"),
-            step=0.5,
-            format="%.1f",
+            label="",
+            min_value=-12.0,
+            max_value=14.0,
+            step=0.25,
+            format="%.2f",
             key="tz",
+            label_visibility="collapsed",
+            on_change=on_tz_manual_change,   # ← UTCオフセットを触ったら Manual に切り替える
         )
+
+    with tz_r:
+        # タイムゾーン名の表示（DST/標準時の状態も併記）
+        tz_name = st.session_state.get("tz_name", "Unknown")
+        tz_dst = st.session_state.get("tz_dst")
+        tz_mode = st.session_state.get("tz_mode", "auto")
+
+        if tz_dst is True:
+            tz_suffix = "DST"
+        elif tz_dst is False:
+            tz_suffix = "Standard"
+        else:
+            tz_suffix = "Unknown"
+        mode_badge = "Auto" if tz_mode == "auto" else "Manual"
+        icon = ":material/check:" if tz_mode == "auto" else ":material/edit:"
+        # HTMLでスタイルを当てて表示（小さめの文字でグレーアウト）
+        st.markdown(
+            f"<span style='font-size:0.85rem; color:gray; top: 0.5rem; position: relative;'>"
+            f"{icon} Timezone: <b>{tz_name}</b> ({tz_suffix}) [{mode_badge}]"
+            f"</span>",
+            unsafe_allow_html=True,
+        )
+
 
     # 性別コード（内部値から変換）
-    GENDER_MAP = {"unknown": "Unknown", "male": "Male", "female": "Female"}
-    gender_code = GENDER_MAP.get(gender, "Unknown")
+    GENDER_MAP = {"male": "Male", "female": "Female"}
+    gender_code = GENDER_MAP.get(st.session_state["gender"])  # NoneならNone
 
 
 # =======================================================
 # 5) 出力設定UI（Preset Slider + Tabs）
 # =======================================================
-st.subheader(t("output_settings"))
+st.subheader(
+    f":material/file_json: {t('output_settings')}"
+    )
+with st.container(border=True):
 
 # --- Output Level スライダー + Custom 表示 ---
-st.write(f"**{t('output_level')}**")
+    st.write(f"{t('output_level')}")
 
-col_slider, col_status = st.columns([7, 3])
+    col_slider, col_status = st.columns([7, 3])
 
-with col_slider:
-    # スライダー本体（uitest.py と同じ構成）
-    selected_level = st.select_slider(
-        "preset_slider",
-        options=["Basic", "Standard", "Advanced"],
-        key="output_level",          # セッションに直結
-        label_visibility="collapsed",
-        on_change=on_preset_slider_change,
+    with col_slider:
+        # スライダー本体（uitest.py と同じ構成）
+        selected_level = st.select_slider(
+            "preset_slider",
+            options=["Basic", "Standard", "Advanced"],
+            key="output_level",          # セッションに直結
+            label_visibility="collapsed",
+            on_change=on_preset_slider_change,
+        )
+
+        # Custom 中だけ、スライダーを薄く表示
+        if st.session_state.get("is_custom", False):
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stSlider"] > div {
+                    opacity: 0.4;
+                    transition: opacity 0.2s ease-in-out;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stSlider"] > div {
+                    opacity: 1.0;
+                    transition: opacity 0.2s ease-in-out;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    with col_status:
+        # 「完璧に揃った」Custom 表示をそのまま利用
+        if st.session_state.get("is_custom", False):
+            st.markdown(
+                """
+                <div style="text-align: center; color:#FF4B4B; line-height: 12px; margin-top: -3px;">
+                    <span style="font-size: 14px;">Custom</span>
+                </div>
+                <div style="text-align: center; color:#FF4B4B; line-height: 22px;">
+                    <span style="font-size: 24px;">●</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                """
+                <div style="text-align: center; color:gray; opacity: 0.8; line-height: 12px; margin-top: -3px;">
+                    <span style="font-size: 14px;">Custom</span>
+                </div>
+                <div style="text-align: center; color:gray; opacity: 0.3; line-height: 22px;">
+                    <span style="font-size: 24px;">○</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # ---- 説明文（current_profile に応じて表示） ----
+    if st.session_state.get("is_custom", False):
+        current_profile = "Custom"
+    else:
+        current_profile = st.session_state.get(
+            "output_profile",
+            st.session_state.get("output_level", "Standard"),
+        )
+
+    st.info(t(f"preset_desc_{current_profile.lower()}"))
+
+    # ---- Tabs Reorganized ----
+    tab_basic, tab_d1, tab_varga, tab_dasha = st.tabs(
+        [t("tab_basic"), t("tab_d1"), t("tab_varga"), t("tab_dasha")]
     )
 
-    # Custom 中だけ、スライダーを薄く表示
-    if st.session_state.get("is_custom", False):
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stSlider"] > div {
-                opacity: 0.4;
-                transition: opacity 0.2s ease-in-out;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stSlider"] > div {
-                opacity: 1.0;
-                transition: opacity 0.2s ease-in-out;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-with col_status:
-    # uitest.py で「完璧に揃った」Custom 表示をそのまま利用
-    if st.session_state.get("is_custom", False):
-        st.markdown(
-            """
-            <div style="text-align: center; color:#FF4B4B; line-height: 12px; margin-top: -3px;">
-                <span style="font-size: 14px;">Custom</span>
-            </div>
-            <div style="text-align: center; color:#FF4B4B; line-height: 22px;">
-                <span style="font-size: 24px;">●</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            """
-            <div style="text-align: center; color:gray; opacity: 0.8; line-height: 12px; margin-top: -3px;">
-                <span style="font-size: 14px;">Custom</span>
-            </div>
-            <div style="text-align: center; color:gray; opacity: 0.3; line-height: 22px;">
-                <span style="font-size: 24px;">○</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-# ---- 説明文（current_profile に応じて表示） ----
-if st.session_state.get("is_custom", False):
-    current_profile = "Custom"
-else:
-    current_profile = st.session_state.get(
-        "output_profile",
-        st.session_state.get("output_level", "Standard"),
-    )
-
-st.info(t(f"preset_desc_{current_profile.lower()}"))
-
-# ---- Tabs Reorganized ----
-tab_basic, tab_d1, tab_varga, tab_dasha = st.tabs(
-    [t("tab_basic"), t("tab_d1"), t("tab_varga"), t("tab_dasha")]
-)
 
 # =======================================================
 # BASIC 設定タブ
 # =======================================================
 with tab_basic:
-    c1, c2 = st.columns([1, 1])
+    col_node, col_ck = st.columns([1, 1])
 
-with c1:
-    # --- Node Type (Mean / True) ---
+    with col_node:
+        # --- Node Type (Mean / True) ---
 
-    # 1) 共通の内部値を取得（なければ "True"）
-    internal_node_type = st.session_state.get("node_type", "True")
-    if internal_node_type not in ("Mean", "True"):
-        internal_node_type = "True"
+        # 内部値の正規化（安全策）
+        if st.session_state["node_type"] not in ("Mean", "True"):
+            st.session_state["node_type"] = "True"
 
-    # 2) 言語ごとに widget の key を変える（言語切り替え時に再描画させる）
-    node_type_widget_key = f"node_type_{st.session_state.get('lang', 'EN')}"
+        lang = st.session_state.get("lang", "EN")
+        node_type_widget_key = f"node_type_{lang}"
 
-    # 3) ラジオは内部キー "Mean"/"True" だけ
-    node_type_raw = st.radio(
-        t("node_type"),
-        options=["Mean", "True"],  # 内部値
-        index=["Mean", "True"].index(internal_node_type),
-        format_func=lambda k: t("node_mean") if k == "Mean" else t("node_true"),
-        key=node_type_widget_key,
-    )
+        # 内部値から index を決定
+        internal = st.session_state["node_type"]
+        idx = 0 if internal == "Mean" else 1
 
-    # 4) 値を検証しつつ NodeType にキャスト
-    if node_type_raw not in ("Mean", "True"):
-        node_type_raw = "True"
-    node_type: NodeType = cast(NodeType, node_type_raw)
+        node_type: NodeType = cast(
+            NodeType,
+            st.radio(
+                t("node_type"),
+                options=["Mean", "True"],
+                index=idx,
+                key=node_type_widget_key,
+                format_func=lambda k: (
+                    t("node_mean") if k == "Mean" else t("node_true")
+                ),
+            ),
+        )
 
-    # 5) 共通の内部キーに同期（Session State 用）
-    st.session_state["node_type"] = node_type
+        # 内部値へ同期（真実はここ）
+        st.session_state["node_type"] = node_type
 
+    with col_ck:
+        # --- Chara Karaka（内部は文字列 "8"/"7"）---
+        ck_mode_str = st.radio(
+            t("ck_mode"),
+            options=["8", "7"],
+            format_func=lambda s: t("ck_8") if s == "8" else t("ck_7"),
+            key="ck_mode",   # session_state["ck_mode"] をそのまま使う
+        )
+
+        # 計算では int に変換
+        ck_mode = 8 if ck_mode_str == "8" else 7
+
+    # --- 2行目：minimize（columns の外） ---
     minimize = st.checkbox(
         t("minimize"),
         value=st.session_state.get("minimize", True),
         key="minimize",
     )
-
-    with c2:
-        # --- Chara Karaka（内部は文字列 "8"/"7"）---
-        # 1) 共通内部値（"8"/"7"）を取得
-        internal_ck = st.session_state.get("ck_mode", "8")
-
-        ck_mode_str = st.radio(
-            t("ck_mode"),
-            options=["8", "7"],
-            index=["8", "7"].index(internal_ck),  # 内部値から index を決める
-            format_func=lambda s: t("ck_8") if s == "8" else t("ck_7"),
-            key="ck_mode",
-        )
-
-        # 2) 計算では int に変換
-        ck_mode = 8 if ck_mode_str == "8" else 7
-
 
 # =======================================================
 # D1 詳細タブ（4カテゴリ構成）
@@ -757,34 +957,34 @@ with c1:
 with tab_d1:
     d1, d2 = st.columns([1, 1])
 
-with d1:
-    # ---- Interactions ----
-    st.caption(t("d1_interactions"))
-    opt_nak_lord     = st.checkbox(t("chk_nak_lord"), key="opt_nak_lord", on_change=on_manual_option_changed)
-    opt_aspects      = st.checkbox(t("chk_aspects"), key="opt_aspects", on_change=on_manual_option_changed)
-    opt_conjunctions = st.checkbox(t("chk_conjunctions"), key="opt_conjunctions", on_change=on_manual_option_changed)
+    with d1:
+        # ---- Interactions ----
+        st.caption(f":material/sync_alt: {t('d1_interactions')}")
+        opt_nak_lord     = st.checkbox(t("chk_nak_lord"), key="opt_nak_lord", on_change=on_manual_option_changed)
+        opt_aspects      = st.checkbox(t("chk_aspects"), key="opt_aspects", on_change=on_manual_option_changed)
+        opt_conjunctions = st.checkbox(t("chk_conjunctions"), key="opt_conjunctions", on_change=on_manual_option_changed)
 
-    # ---- Planet Motion ----
-    st.caption(t("d1_motion"))
-    opt_speed_status = st.checkbox(t("chk_speed_status"), key="opt_speed_status", on_change=on_manual_option_changed)
+        # ---- Planet Motion ----
+        st.caption(f":material/speed: {t('d1_motion')}")
+        opt_speed_status = st.checkbox(t("chk_speed_status"), key="opt_speed_status", on_change=on_manual_option_changed)
 
-with d2:
-    # ---- Planet Conditions ----
-    st.caption(t("d1_conditions"))
-    opt_combust      = st.checkbox(t("chk_combust"), key="opt_combust", on_change=on_manual_option_changed)
-    opt_planet_war   = st.checkbox(t("chk_planet_war"), key="opt_planet_war", on_change=on_manual_option_changed)
-    opt_dignity_det  = st.checkbox(t("chk_dignity_detail"), key="opt_dignity_det", on_change=on_manual_option_changed)
-    opt_dig_bala     = st.checkbox(t("chk_dig_bala"), key="opt_dig_bala", on_change=on_manual_option_changed)
+    with d2:
+        # ---- Planet Conditions ----
+        st.caption(f":material/assessment: {t('d1_conditions')}")
+        opt_combust      = st.checkbox(t("chk_combust"), key="opt_combust", on_change=on_manual_option_changed)
+        opt_planet_war   = st.checkbox(t("chk_planet_war"), key="opt_planet_war", on_change=on_manual_option_changed)
+        opt_dignity_det  = st.checkbox(t("chk_dignity_detail"), key="opt_dignity_det", on_change=on_manual_option_changed)
+        opt_dig_bala     = st.checkbox(t("chk_dig_bala"), key="opt_dig_bala", on_change=on_manual_option_changed)
 
-    # ---- Special Positions ----
-    st.caption(t("d1_special"))
-    opt_vargottama   = st.checkbox(t("chk_vargottama"), key="opt_vargottama", on_change=on_manual_option_changed)
-    opt_gandanta     = st.checkbox(t("chk_gandanta"), key="opt_gandanta", on_change=on_manual_option_changed)
+        # ---- Special Positions ----
+        st.caption(f":material/flare: {t('d1_special')}")
+        opt_vargottama   = st.checkbox(t("chk_vargottama"), key="opt_vargottama", on_change=on_manual_option_changed)
+        opt_gandanta     = st.checkbox(t("chk_gandanta"), key="opt_gandanta", on_change=on_manual_option_changed)
 
-    # future (disabled)
-    # st.checkbox("Mrityu Bhaga (future)", disabled=True)
-    # st.checkbox("Ashtakavarga (future)", disabled=True)
-    # st.checkbox("Shadbala (future)", disabled=True)
+        # future (disabled)
+        # st.checkbox("Mrityu Bhaga (future)", disabled=True)
+        # st.checkbox("Ashtakavarga (future)", disabled=True)
+        # st.checkbox("Shadbala (future)", disabled=True)
 
 # =======================================================
 # 分割図タブ 2列構成 + Varga Options
@@ -1250,6 +1450,7 @@ if go:
 
     # 10) バリデーション → 表示/保存
     out = prune_and_validate(out)
+    minimize = bool(st.session_state.get("minimize", True))
     txt_pretty = pretty_json_inline_lists(out, indent=2)
     txt_min = json.dumps(out, ensure_ascii=False, separators=(",", ":")) if minimize else txt_pretty
 
