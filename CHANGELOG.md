@@ -27,3 +27,19 @@ This project follows Semantic Versioning.
 
 ### Changed (JP)
 - UI を見やすく改良
+
+---
+
+## [1.2.0] - Planned
+### Added
+- Extend automatic latitude / longitude retrieval  
+  from Google Maps to also support **Plus Codes**
+
+- Considering support for:
+  - Ashtakavarga
+  - Shadbala
+  - Yoga detection
+
+### Planned (JP)
+- Google マップからの緯度経度自動取得を、Plus Code にも対応予定
+- アシュタカヴァルガ、シャドバラ、ヨーガ判定の追加を検討中
