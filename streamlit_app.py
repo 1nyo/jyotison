@@ -765,7 +765,7 @@ with st.container(border=True):
     with tz_i:
         # UTCオフセットの入力（自動計算された値が初期値として入る）
         tz_offset = st.number_input(
-            label="",
+            label="Timezone Offset",
             min_value=-12.0,
             max_value=14.0,
             step=0.25,
@@ -1388,7 +1388,7 @@ if go:
         "schema": "kundali_llm_v1",
         "generator": {
             "tool": "JyotiSON",
-            "version": "1.0",
+            "version": "1.1",
             "url": "https://jyotison.streamlit.app/",
             "output_at": output_at,
             "purpose": "LLM_vedic_astrology_analysis"
