@@ -30,10 +30,18 @@ This project follows Semantic Versioning.
 
 ---
 
-## [1.2.0] - Planned
+## [1.1.1] - Planned
 ### Added
 - Extend automatic latitude / longitude retrieval  
-  from Google Maps to also support **Plus Codes**
+  from Google Maps to also support Share link
+
+### Planned (JP)
+- Google マップからの緯度経度自動取得を、共有>リンクをコピーにも対応予定（モバイルからのUX向上）
+
+---
+
+## [1.2.0] - Planned
+### Added
 
 - Considering support for:
   - Ashtakavarga
@@ -41,5 +49,4 @@ This project follows Semantic Versioning.
   - Yoga detection
 
 ### Planned (JP)
-- Google マップからの緯度経度自動取得を、Plus Code にも対応予定
 - アシュタカヴァルガ、シャドバラ、ヨーガ判定の追加を検討中
