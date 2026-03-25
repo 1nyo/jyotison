@@ -53,6 +53,7 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 ## 🧠 Features / 主な機能
 
 ### ✅ Implemented
+- **Smart Google Maps Input**: Accepts direct coordinates and Google Maps share links.
 - **Automatic Spatio-Temporal Detection**: Timezone and DST detection based on birth coordinates.
 - **Precise Calculations**: Sidereal zodiac (Lahiri Ayanamsa), Whole Sign house system, and Mean/True Node toggle.
 - **Interpretation Aids**: Automatic detection of Dignity (Exalted, Debilitated, Moolatrikona, etc.), Aspects, and Combustion.
@@ -62,13 +63,15 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 - **Vimshottari Dasha**: Full life cycle (MD) and detailed current context (AD) with past/current/future tagging.
 
 ### ✅ 実装済み
+
+- **Googleマップ入力の最適化**: 座標数値・Googleマップ共有リンクの貼り付けに対応。  
 - **UTCオフセットの自動判定**: 出生地・時刻からのタイムゾーンおよび夏時間の自動判定
 - **精密な計算ロジック**: 恒星黄道（Lahiri Ayanamsa）、Whole Sign ハウスシステム、Mean/True Node 切り替え
 - **解釈の補助線**: 品位（高揚・減衰、ムーラトリコーナ等）、アスペクト、コンバストの自動判定
 - **高度な指標**: 惑星スピード（静止・高速等）、ディグ・バラ、ヴァルゴッタマ判定
 - **ジャイミニ占星術**: チャラ・カーラカ、カラカムシャ、AL、UL の算出
 - **豊富な分割図**: 主要な10種類以上の分割図に対応（D1, D3, D4, D7, D9, D10, D12, D16, D20, D24, D30, D60）
-- **ヴィムショッタリ・ダシャー**: 一生の大きな流れ（MD）と、前後数年の詳細な流れ（AD）をタグ付きで出力
+- **ヴィムショッタリ・ダシャー**: 一生の大きな流れ（MD）と、現在と前後数年の詳細な流れ（AD）をタグ付きで出力
 
 ---
 
@@ -90,6 +93,29 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 │  └─ validators.py
 └─ requirements.txt
 ```
+---
+
+## ⚙️ Technical Specs / 技術仕様
+
+- Python: 3.11
+- Framework: Streamlit 1.54.0
+- Ephemeris: Swiss Ephemeris (pyswisseph 2.10.3.2)
+
+---
+
+## 📦 Output Format / 出力形式
+
+- JSON only
+- Stable, explicit keys for LLM parsing
+- No UI-oriented abbreviations
+- Semantic meaning preserved even if verbose
+
+### 日本語
+
+- 出力は JSONのみ
+- LLMが誤解しにくい 明示的なキー設計
+- UI向けの省略表記は使用しません
+- 冗長でも 意味の保存を優先します
 
 ---
 
@@ -122,15 +148,16 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
         "Sa": {
           "sign": "Sg", "degree": 21.89, "house": 9, "combust": true, "dignity": "neutral"
         }
-        ...
+        //...
       },
       "jaimini": {
-        "AK": "Sa", "AmK": "Su", ... "arudha_lagna": "Ge"
+        "AK": "Sa", "AmK": "Su", //...,
+        "arudha_lagna": "Ge"
       },
       "derived": {
         "vargottama": ["Ma", "Me"],
         "lordship_to_houses": { "Ma": [1, 8], "Ju": [9, 12], "Sa": [10, 11] }
-        ...
+        //...
       }
     },
     "D9": {
@@ -138,14 +165,14 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
       "planets": {
         "Ju": { "sign": "Cp", "house": 10, "dignity": "debilitated" },
         "Sa": { "sign": "Li", "house": 7, "dignity": "exalted" }
-        ...
+        //...
       }
     },
     "D10": {
       "Asc": { "sign": "Ar" },
       "planets": {
         "Me": { "sign": "Vi", "house": 6, "dignity": "exalted" }
-        ...
+        //...
       }
     }
   },
@@ -164,8 +191,17 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 }
 ```
 ---
-## ⚙️ Technical Specs / 技術仕様
 
-- Python: 3.11
-- Framework: Streamlit 1.54.0
-- Ephemeris: Swiss Ephemeris (pyswisseph 2.10.3.2)
+## 📜 License
+
+MIT License
+
+---
+
+## ✨ Notes
+
+JyotiSON is an experimental and research-oriented project.
+Astrological correctness is prioritized, but interpretations are intentionally not included.
+
+JyotiSON は研究・実験的プロジェクトです。
+計算の正確性は重視していますが、解釈文は意図的に含めていません。

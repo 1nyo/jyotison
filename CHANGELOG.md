@@ -30,13 +30,13 @@ This project follows Semantic Versioning.
 
 ---
 
-## [1.1.1] - Planned
+## [1.1.1] - 2026-3-26
 ### Added
 - Extend automatic latitude / longitude retrieval  
-  from Google Maps to also support Share link
+  from Google Maps to also support Share link (Mobile firiendly)
 
-### Planned (JP)
-- Google マップからの緯度経度自動取得を、共有>リンクをコピーにも対応予定（モバイルからのUX向上）
+### Added (JP)
+- Google マップからの緯度経度自動取得を、共有リンクにも対応（モバイルからのUX向上）
 
 ---
 

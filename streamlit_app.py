@@ -1,10 +1,12 @@
 # streamlit_app.py
 import json
-from timezonefinder import TimezoneFinder
+import re
 from datetime import date, datetime
+from urllib.parse import urlparse, parse_qs
+from urllib.request import Request, urlopen
+from timezonefinder import TimezoneFinder
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional, cast, Literal
-import re
 
 import streamlit as st
 
@@ -67,7 +69,7 @@ LANG_DICT = {
         "geo": "出生地", "geo_gmap": "（初期値は東京）座標取得先（推奨）：",
         "gmap": "Googleマップ",
         "geo_paste": ":material/location_on: Googleマップの座標を貼り付け",
-        "geo_help": "地点を右クリックして出現した数値をクリックしてコピーし、そのままここに貼り付けてください",
+        "geo_help": "地点を右クリックして表示される数値（例: 35.6812, 139.7671）をコピー、または Googleマップの共有リンク（maps.app.goo.gl/XXXX）をそのまま貼り付けできます。",
         "geo_ph": "例: 35.6812, 139.7671", "geo_clear": "貼り付けた場所をクリア",
         "geo_success": "座標を認識しました: 緯度 {default_lat} / 経度 {default_lon}",
         "geo_error": "無効な座標形式です。35.123, 139.456 のような数値を入力してください。",
@@ -167,7 +169,7 @@ LANG_DICT = {
         "geo": "Birth Place", "geo_gmap": "(Default: Tokyo) Get coordinates from ",
         "gmap": "Google Maps",
         "geo_paste": ":material/location_on: Paste Google Map Coordinates",
-        "geo_help": "Copy the numbers that appear when you right-click on a location and paste them here",
+        "geo_help": "Copy the coordinates shown by right-clicking a location (e.g. 35.6812, 139.7671), or paste a Google Maps share link (maps.app.goo.gl/XXXX) directly.",
         "geo_ph": "e.g. 35.6812, 139.7671", "geo_clear": "Clear pasted location",
         "geo_success": "Coordinates recognized: Latitude {default_lat} / Longitude {default_lon}",
         "geo_error": "Invalid coordinate format. Please enter numbers like 35.123, 139.456.",
@@ -527,10 +529,10 @@ st.markdown(
     <style>
     .header-container {text-align: center; padding: 0 0 1.5rem 0; font-family: 'Inter', 'sans-serif';}
     .logo-text {font-size: 4rem; font-weight: 800; letter-spacing: -2px; margin-bottom: 0; line-height: 1;}
-    .yoti {opacity: 0.5; font-weight: 500; letter-spacing: -4px; padding: 0 2px;}
+    .yoti {opacity: 0.8; font-weight: 500; letter-spacing: -4px; padding: 0 2px;}
     .version-text { font-size: 1rem; vertical-align: super; opacity: 0.5; margin-left: 2px; position: relative; top: -0.8rem; font-weight: 400; letter-spacing: 0; }
     .subtitle-text {font-size: 1rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
-        opacity: 0.7; margin-top: 0.9rem;}
+        opacity: 0.85; margin-top: 0.9rem;}
     /* st.caption の下の余白を削る */
     div[data-testid="stCode"] code {font-size: 0.8rem;}
     div[data-testid="stExpander"], div.stInfo {border: none;
@@ -604,6 +606,128 @@ def parse_latlon_any(s: str) -> tuple[float, float] | None:
         if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
             return lat, lon
     return None
+
+# =======================================================
+# Google Maps hybrid coordinate parser (smartphone-friendly)
+# - Accepts:
+#   • lat, lon plain text
+#   • Google Maps long URLs with @lat,lon
+#   • Google Maps official URLs (?q=lat,lon etc.)
+#   • Google Maps short URLs (maps.app.goo.gl ONLY)
+# =======================================================
+
+_URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
+
+def _first_url(text: str) -> str | None:
+    """Extract first URL from arbitrary pasted text."""
+    if not text:
+        return None
+    m = _URL_RE.search(text)
+    return m.group(0) if m else None
+
+
+def _extract_latlon_from_url(url: str) -> tuple[float, float] | None:
+    """Extract lat/lon from Google Maps style URLs (no network).
+    Priority:
+    1) !3dLAT!4dLON (true place coordinates)
+    2) @LAT,LON (map center)
+    3) query parameters (q / query / center)
+    """
+
+    if not url:
+        return None
+
+    # 1) TRUE place coordinates: !3dLAT!4dLON
+    m = re.search(
+        r"!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)",
+        url
+    )
+    if m:
+        lat, lon = float(m.group(1)), float(m.group(2))
+        if -90 <= lat <= 90 and -180 <= lon <= 180:
+            return lat, lon
+
+    # 2) Map center: /@LAT,LON
+    m = re.search(
+        r"@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+        url
+    )
+    if m:
+        lat, lon = float(m.group(1)), float(m.group(2))
+        if -90 <= lat <= 90 and -180 <= lon <= 180:
+            return lat, lon
+
+    # 3) Official Maps URL parameters
+    try:
+        parsed = urlparse(url)
+        qs = parse_qs(parsed.query)
+        for key in ("q", "query", "center"):
+            if key in qs and qs[key]:
+                m2 = re.search(
+                    r"(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+                    qs[key][0]
+                )
+                if m2:
+                    lat, lon = float(m2.group(1)), float(m2.group(2))
+                    if -90 <= lat <= 90 and -180 <= lon <= 180:
+                        return lat, lon
+    except Exception:
+        pass
+
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def _resolve_maps_app_short_url(url: str) -> str | None:
+    """
+    Resolve Google Maps short URL.
+    SECURITY: allow ONLY maps.app.goo.gl
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc.lower() != "maps.app.goo.gl":
+            return None
+
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(req, timeout=5) as resp:
+            return resp.geturl()
+    except Exception:
+        return None
+
+
+def parse_latlon_hybrid(text: str) -> tuple[float, float] | None:
+    """
+    Ultimate parser for geo_paste:
+    - Works with smartphone Google Maps share text
+    - Network access ONLY if maps.app.goo.gl is detected
+    """
+    if not text:
+        return None
+
+    # 1) Try URL-based parsing
+    url = _first_url(text)
+    if url:
+        res = _extract_latlon_from_url(url)
+        if res:
+            return res
+
+        # Short URL: maps.app.goo.gl ONLY
+        if urlparse(url).netloc.lower() == "maps.app.goo.gl":
+            final_url = _resolve_maps_app_short_url(url)
+            if final_url:
+                res2 = _extract_latlon_from_url(final_url)
+                if res2:
+                    return res2
+
+    # 2) Fallback: plain "lat, lon" numbers
+    nums = re.findall(r"[-+]?\d+(?:\.\d+)?", text)
+    if len(nums) >= 2:
+        lat, lon = float(nums[0]), float(nums[1])
+        if -90 <= lat <= 90 and -180 <= lon <= 180:
+            return lat, lon
+
+    return None
+
 
 # 入力UIの直前（with st.container(border=True): の上でもOK）
 st.session_state.setdefault("lat", 35.68120)
@@ -698,13 +822,18 @@ with st.container(border=True):
     # ③ ここで「先に」貼り付けを処理して lat/lon を session_state に反映する
     #    ※ lat/lon ウィジェットを作る前なので Streamlit に怒られない
     if geo_paste:
-        res = parse_latlon_any(geo_paste)
+        res = parse_latlon_hybrid(geo_paste)
         if res:
             pasted_lat, pasted_lon = res
             st.session_state["lat"] = pasted_lat
             st.session_state["lon"] = pasted_lon
             st.session_state["tz_dirty"] = True
-            geo_msg.success(t("geo_success").format(default_lat=pasted_lat, default_lon=pasted_lon))
+            geo_msg.success(
+                t("geo_success").format(
+                    default_lat=pasted_lat,
+                    default_lon=pasted_lon,
+                )
+            )
         else:
             geo_msg.error(t("geo_error"))
     else:
