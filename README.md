@@ -80,17 +80,28 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 ```text
 .
 ├─ streamlit_app.py
+├─ ui/
+│  ├─ i18n.py             # 翻訳辞書（EN / JP）
+│  ├─ geo_timezone.py     # geo_paste / lat-lon / tz auto-manual 状態遷移
+│  └─ presets.py          # Output preset (Basic / Standard / Advanced / Custom)
+├─ input/
+│  └─ location.py         # Google Maps 座標 / 共有リンクのパース
+├─ output/
+│  └─ filters.py          # apply_output_options（出力マスク）
 ├─ calc/
-│  ├─ base.py        # Constant definitions
-│  ├─ ephemeris.py
-│  ├─ panchanga.py
-│  ├─ speed.py       # Speed & station detection
-│  ├─ enrich.py      # lord, aspect, dignity, combust, etc.
-│  ├─ jaimini.py     # Chara Karaka, AL, UL
-│  ├─ varga.py
-│  ├─ d1.py / d9.py
-│  ├─ dasha.py       # Vimshottari Dasha
-│  └─ validators.py
+│  ├─ __init__.py
+│  ├─ timezone.py         # 緯度経度 + datetime → TZ/DST/offset
+│  ├─ base.py             # 定数・基本定義（SIGNS, PLANETS 等）
+│  ├─ ephemeris.py        # Swiss Ephemeris wrapper
+│  ├─ panchanga.py        # Tithi / Paksha / Nakshatra
+│  ├─ speed.py            # Speed / station / very fast 判定
+│  ├─ enrich.py           # lord, aspect, dignity, combust, dig bala 等
+│  ├─ jaimini.py          # Chara Karaka, Karakamsha, AL, UL
+│  ├─ varga.py            # 共通分割図ビルダー（D3–D60）
+│  ├─ d1.py               # D1 Rashi
+│  ├─ d9.py               # D9 Navamsa
+│  ├─ dasha.py            # Vimshottari Dasha
+│  └─ validators.py       # prune_and_validate / schema 検証
 └─ requirements.txt
 ```
 ---

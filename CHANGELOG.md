@@ -40,6 +40,17 @@ This project follows Semantic Versioning.
 
 ---
 
+## [1.1.2] - 2026-03-26
+
+### Changed
+- Reorganized internal file structure to clearly separate UI logic, input parsing, output filtering, and calculation layers.
+- Improved maintainability and readability without changing calculation results or output schema.
+
+### Fixed
+- Fixed an issue where Google Maps share links generated from the Android app could not be parsed correctly when pasted into the birth location field.
+
+---
+
 ## [1.2.0] - Planned
 ### Added
 

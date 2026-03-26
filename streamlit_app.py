@@ -1,20 +1,38 @@
 # streamlit_app.py
 import json
-import re
 from datetime import date, datetime
-from urllib.parse import urlparse, parse_qs
-from urllib.request import Request, urlopen
-from timezonefinder import TimezoneFinder
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional, cast, Literal
+import re
 
 import streamlit as st
+
+# ---- ui imports ----
+from ui.i18n import t, validate_lang_dict
+from ui.geo_timezone import (
+    ensure_geo_tz_state,
+    mark_tz_dirty,
+    clear_geo_paste,
+    on_latlon_manual_change,
+    on_tz_manual_change,
+    handle_geo_paste,
+    render_geo_message,
+)
+from ui.presets import (
+    ensure_preset_state,
+    on_preset_slider_change,
+    on_manual_option_changed,
+    current_profile_for_desc,
+)
+
+# ---- input imports ----
+from input.location import parse_location_input
 
 # ---- calc imports ----
 from calc import (
     julday_utc, calc_planet, calc_asc_long,
     prune_and_validate, pretty_json_inline_lists
 )
+from calc.timezone import resolve_timezone
 from calc.ephemeris import get_ayanamsa_str_deg, NodeType
 from calc.base import (
     nakshatra_of, sign_abbr_of, deg_in_sign, fmt_deg_2,
@@ -27,6 +45,9 @@ from calc.jaimini import assign_chara_karaka, karakamsa_sign_for_ak, arudha_lagn
 from calc.panchanga import tithi_info
 from calc.enrich import Chart, enrich_d1, apply_varga_flags
 
+# ---- output imports ----
+from output.filters import apply_output_options
+
 # =======================================================
 # Streamlit page configuration（最初の Streamlit コマンドに）
 # =======================================================
@@ -35,6 +56,7 @@ st.set_page_config(
     page_icon="☸️",
     layout="centered",
 )
+validate_lang_dict(strict=False)
 
 # =======================================================
 # 1) セッション状態の初期化
@@ -47,217 +69,6 @@ if "lang_initialized_from_query" not in st.session_state:
     if "lang" in params and params["lang"] in ("EN", "JP"):
         st.session_state.lang = params["lang"]
     st.session_state.lang_initialized_from_query = True
-
-# ---- 翻訳辞書 ----
-LANG_DICT = {
-    "JP": {
-        # Header
-        "subtitle": "AI向けインド占星術チャートデータ生成ツール",
-
-        # Engine
-        "engine": "エンジン", "model": "計算モデル", "ref": "準拠",
-        "engine_swiss": "Swiss Ephemeris",
-        "model_drik": "Drik（観測準拠）",
-        "ref_lahiri": "Lahiri（サイデリアル）",
-
-        # Input
-        "input_bd": "出生情報の入力",
-        "name": "名前", "gender": "性別", "choose": "選択...",
-        "male": "男性", "female": "女性",
-        "birth": "出生日", "birth_help": "YYYY/MM/DD 形式で入力, 時は24時間制",
-        "Hr": "時 (24H)", "Min": "分", "Sec": "秒",
-        "geo": "出生地", "geo_gmap": "（初期値は東京）座標取得先（推奨）：",
-        "gmap": "Googleマップ",
-        "geo_paste": ":material/location_on: Googleマップの座標を貼り付け",
-        "geo_help": "地点を右クリックして表示される数値（例: 35.6812, 139.7671）をコピー、または Googleマップの共有リンク（maps.app.goo.gl/XXXX）をそのまま貼り付けできます。",
-        "geo_ph": "例: 35.6812, 139.7671", "geo_clear": "貼り付けた場所をクリア",
-        "geo_success": "座標を認識しました: 緯度 {default_lat} / 経度 {default_lon}",
-        "geo_error": "無効な座標形式です。35.123, 139.456 のような数値を入力してください。",
-        "lat": "緯度（北緯+）", "lon": "経度（東経+）",
-        "tz": "UTCオフセット", "tz_auto": "（自動認識）",
-        "tz_help": "手動で修正が必要な場合は貼り付け座標をクリアしてください。",
-
-        # Output Settings
-        "output_settings": "出力方法の設定",
-        "output_level": "出力レベル（推奨設定セット）",
-
-        # Output Level descriptions
-        "preset_desc_basic": "🔹 Basic（軽量）: 最小限の補助線だけでAIの解釈の自由度を残す構成。",
-        "preset_desc_standard": "🔷 Standard（推奨）: D1/D9と主要補助線を揃えたバランス構成。",
-        "preset_desc_advanced": "🔶 Advanced（完全版）: 全補助線・分割図を含むフルスペック構成。",
-        "preset_desc_custom": "✳ Custom（自由調整）: 現在の構成はプリセットと一致していません。",
-
-        # Tabs
-        "tab_basic": "基本設定",
-        "tab_d1": "D1 詳細",
-        "tab_varga": "分割図",
-        "tab_dasha": "ダシャー",
-
-        # Node Type
-        "node_type": "ノードの計算",
-        "node_mean": "Mean Node（平均）",
-        "node_true": "True Node（真）",
-
-        # Chara Karaka
-        "ck_mode": "チャラ・カーラカ",
-        "ck_8": "8（Rahu含む）",
-        "ck_7": "7（Rahu除外）",
-
-        # Minimize JSON output
-        "minimize": "JSON出力を最小化（スペース・改行なし）",
-
-        # D1 detail groups
-        "d1_interactions": "関係性",
-        "d1_motion": "惑星運動",
-        "d1_conditions": "惑星状態",
-        "d1_special": "特殊配置",
-
-        # D1 detail options
-        "chk_nak_lord": "ナクシャトラロード",
-        "chk_aspects": "アスペクト（グラハ・ドリシュティ）",
-        "chk_conjunctions": "コンジャンクション",
-        "chk_speed_status": "速度の特異値（高速/低速/停止）",
-        "chk_combust": "コンバスト",
-        "chk_planet_war": "惑星戦争（グラハ・ユッダ）",
-        "chk_dignity_detail": "品位に有効/中立/敵対をつける",
-        "chk_dig_bala": "ディグ・バラ",
-        "chk_vargottama": "ヴァルゴッタマ",
-        "chk_gandanta": "ガンダーンタ",
-
-        # Varga
-        "d1": "D1 Rashi（基本）* 必須",
-        "d9": "D9 Navamsa（本質層）",
-        "d3": "D3 Drekkana（兄弟姉妹）",
-        "d4": "D4 Chaturthamsa（家・不動産）",
-        "d7": "D7 Saptamsa（子ども・想像力）",
-        "d10": "D10 Dasamsa（キャリア）",
-        "d12": "D12 Dwadasamsa（両親・祖先）",
-        "d16": "D16 Shodasamsa（乗り物・快適性）",
-        "d20": "D20 Vimsamsa（霊性層）",
-        "d24": "D24 Siddhamsa（学び・教育）",
-        "d30": "D30 Trimshamsa（不運・逆境）",
-        "d60": "D60 Shashtyamsa（カルマ層）",
-        "varga_op": "分割図の出力オプション（クリックで展開）",
-        "varga_d9_deg": "D9の度数を出力",
-        "varga_d3d60_dig": "D1/D9 以外の分割図で品位（高揚/減衰のみ）を出力する",
-
-        # Dasha
-        "vimshottari": "ヴィムショッタリ・ダシャー",
-        "chara_dasha": "チャラ・ダシャー（未実装）",
-
-        # Buttons
-        "btn_generate": "AI向けJSONを生成（プレビュー）",
-        "preview": "プレビュー（JSON 内容確認）",
-        "download": "最小化JSONをダウンロード（{file_name}）",
-    },
-
-    "EN": {
-        "subtitle": "Jyotish Chart JSON Generator for AI",
-
-        # Engine
-        "engine": "Engine", "model": "Model", "ref": "Reference",
-        "engine_swiss": "Swiss Ephemeris",
-        "model_drik": "Drik (Observational)",
-        "ref_lahiri": "Lahiri (Sidereal)",
-
-        # Input
-        "input_bd": "Input Birth Details",
-        "name": "Name", "gender": "Gender", "choose": "Choose...",
-        "male": "Male", "female": "Female",
-        "birth": "Birth Date", "birth_help": "Enter date in YYYY/MM/DD format, time in 24-hour format",
-        "Hr": "Hour (24H)", "Min": "Minute", "Sec": "Second",
-        "geo": "Birth Place", "geo_gmap": "(Default: Tokyo) Get coordinates from ",
-        "gmap": "Google Maps",
-        "geo_paste": ":material/location_on: Paste Google Map Coordinates",
-        "geo_help": "Copy the coordinates shown by right-clicking a location (e.g. 35.6812, 139.7671), or paste a Google Maps share link (maps.app.goo.gl/XXXX) directly.",
-        "geo_ph": "e.g. 35.6812, 139.7671", "geo_clear": "Clear pasted location",
-        "geo_success": "Coordinates recognized: Latitude {default_lat} / Longitude {default_lon}",
-        "geo_error": "Invalid coordinate format. Please enter numbers like 35.123, 139.456.",
-        "lat": "Latitude (North +)", "lon": "Longitude (East +)",
-        "tz": "UTC Offset", "tz_auto": "(Auto-detected)",
-        "tz_help": "If you need to adjust manually, please clear the pasted coordinates.",
-
-        # Output
-        "output_settings": "Output Settings",
-        "output_level": "Output Level (Recommended Preset Sets)",
-
-        # Output Level descriptions
-        "preset_desc_basic": "🔹 Basic: Lightweight setting allowing greater interpretive freedom.",
-        "preset_desc_standard": "🔷 Standard (Recommended): Balanced configuration with D1/D9 and key supportive lines.",
-        "preset_desc_advanced": "🔶 Advanced (Full): Full specification including all supportive lines and divisional charts.",
-        "preset_desc_custom": "✳ Custom: Current configuration does not match any preset.",
-
-        # Tabs
-        "tab_basic": "Basic Settings",
-        "tab_d1": "D1 Details",
-        "tab_varga": "Divisional Charts",
-        "tab_dasha": "Dashas",
-
-        # Node Type
-        "node_type": "Node Calculation",
-        "node_mean": "Mean Node",
-        "node_true": "True Node",
-
-        # Chara Karaka
-        "ck_mode": "Chara Karaka",
-        "ck_8": "8 (Including Rahu)",
-        "ck_7": "7 (Excluding Rahu)",
-
-        # Minimize JSON output
-        "minimize": "Minimize JSON output (no spaces/newlines)",
-
-        # D1 detail groups
-        "d1_interactions": "Interactions",
-        "d1_motion": "Planet Motion",
-        "d1_conditions": "Planet Conditions",
-        "d1_special": "Special Positions",
-
-        # D1 detail options
-        "chk_nak_lord": "Nakshatra Lord",
-        "chk_aspects": "Aspects to Signs",
-        "chk_conjunctions": "Conjunctions",
-        "chk_speed_status": "Speed Status (fast/slow/station)",
-        "chk_combust": "Combust",
-        "chk_planet_war": "Planetary War",
-        "chk_dignity_detail": "Dignity (Friendly/Neutral/Enemy)",
-        "chk_dig_bala": "Dig Bala",
-        "chk_vargottama": "Vargottama",
-        "chk_gandanta": "Gandanta",
-
-        # Varga
-        "d1": "D1 Rashi (Basic) * Required",
-        "d9": "D9 Navamsa (Essence)",
-        "d3": "D3 Drekkana (Siblings)",
-        "d4": "D4 Chaturthamsa (Home/Property)",
-        "d7": "D7 Saptamsa (Children)",
-        "d10": "D10 Dasamsa (Career)",
-        "d12": "D12 Dwadasamsa (Parents/Ancestors)",
-        "d16": "D16 Shodasamsa (Vehicles/Comfort)",
-        "d20": "D20 Vimsamsa (Spiritual)",
-        "d24": "D24 Siddhamsa (Education)",
-        "d30": "D30 Trimshamsa (Adversity)",
-        "d60": "D60 Shashtyamsa (Karmic)",
-        "varga_op": "Divisional Chart Output Options (click to expand)",
-        "varga_d9_deg": "Show degrees in D9",
-        "varga_d3d60_dig": "Include dignity (only exaltation/debilitation) for non-D1/D9 charts",
-
-        # Dasha
-        "vimshottari": "Vimshottari Dasha",
-        "chara_dasha": "Chara Dasha (future)",
-
-        # Buttons
-        "btn_generate": "Generate JSON for AI (Preview)",
-        "preview": "Preview (JSON content)",
-        "download": "Download minified JSON ({file_name})",
-    },
-}
-
-def t(key: str) -> str:
-    lang = st.session_state.get("lang", "EN")
-    # 念のための安全策（異常値時は EN へフォールバック：書き換えはしない）
-    if lang not in ("EN", "JP"):
-        lang = "EN"
-    return LANG_DICT[lang][key]
 
 # 初期値の保証（まだ何も入っていない場合のデフォルト）
 st.session_state.setdefault("gender", None)
@@ -274,249 +85,10 @@ elif ck not in ("8", "7"):
     ck = "8"
 st.session_state["ck_mode"] = ck
 
-# ------------------------------------------------------------
-# Timezone auto-detect (cached + compute only when needed)
-# ------------------------------------------------------------
-
-@st.cache_resource
-def _get_tz_finder() -> TimezoneFinder:
-    """TimezoneFinder は初期化が重いので 1 セッションで使い回す。"""
-    return TimezoneFinder()
-
+# --- cache wrapper ---
 @st.cache_data(show_spinner=False)
-def _tz_name_from_latlon_cached(lat4: float, lon4: float) -> str | None:
-    """
-    (lat, lon) -> tz_name をキャッシュ。
-    入力の微小変化でキャッシュが無駄に増えないよう、呼び出し側で round する。
-    """
-    tf = _get_tz_finder()
-    return tf.timezone_at(lat=lat4, lng=lon4)
-
-def get_tz_name(lat: float, lon: float) -> str | None:
-    """外部公開用：丸めてからキャッシュ関数へ。"""
-    return _tz_name_from_latlon_cached(round(lat, 4), round(lon, 4))
-
-def get_utc_offset_hours(tz_name: str, dt: datetime) -> float | None:
-    """tz_name と dt から offset(hours) を返す。取れない場合 None。"""
-    try:
-        tz = ZoneInfo(tz_name)
-    except ZoneInfoNotFoundError:
-        return None
-
-    offset_td = dt.astimezone(tz).utcoffset()
-    if offset_td is None:
-        return None
-    return offset_td.total_seconds() / 3600.0
-
-def recompute_tz_if_dirty(birth_dt: datetime) -> None:
-    """
-    tz_dirty が True の時だけ timezonefinder を呼び、
-    tz_name / tz(UTC offset) を session_state に更新する。
-    """
-    if not st.session_state.get("tz_dirty", True):
-        return
-
-    lat = float(st.session_state.get("lat", 0.0))
-    lon = float(st.session_state.get("lon", 0.0))
-
-    tz_name = get_tz_name(lat, lon)
-    st.session_state["tz_name"] = tz_name or "Unknown"
-    st.session_state["tz_dst"] = None  # 初期化
-
-    if tz_name:
-        try:
-            tz = ZoneInfo(tz_name)
-            aware_dt = birth_dt.astimezone(tz)
-
-            offset_td = aware_dt.utcoffset()
-            if offset_td is not None:
-                st.session_state["tz"] = offset_td.total_seconds() / 3600
-
-            # DST 判定
-            dst_td = aware_dt.dst()
-            if dst_td is not None and dst_td.total_seconds() > 0:
-                st.session_state["tz_dst"] = True
-            else:
-                st.session_state["tz_dst"] = False
-            
-            # 自動計算が走ったら Auto に戻す
-            st.session_state["tz_mode"] = "auto"
-
-        except Exception:
-            pass
-    # 計算済みにする（以後、lat/lon が変わるまで再計算しない）
-    st.session_state["tz_dirty"] = False
-
-def mark_tz_dirty() -> None:
-    """Birth D/H/M/S, lat/lon が変わったら True にするための on_change 用。"""
-    st.session_state["tz_dirty"] = True
-
-def clear_geo_paste():
-    # 貼り付け欄をクリア
-    st.session_state["geo_paste"] = ""
-
-    # クリアしたら「自動貼付モード」を解除したいなら dirty を落とす
-    # ※この挙動は好み：手動編集に戻したいなら False が自然
-    st.session_state["tz_dirty"] = False
-
-def on_tz_manual_change():
-    # ユーザーが UTC オフセットを手動変更した
-    st.session_state["tz_mode"] = "manual"
-
-# -------------------------------------------------------
-# Output Presets (Basic / Standard / Advanced / Custom)
-# -------------------------------------------------------
-
-# プリセットが制御するキー（VD1 詳細 + arga + Varga 出力）
-PRESET_KEYS = [
-    # D1 output details
-    "opt_nak_lord", "opt_aspects", "opt_conjunctions", "opt_speed_status",
-    "opt_dig_bala", "opt_combust", "opt_planet_war", "opt_dignity_det",
-    "opt_vargottama", "opt_gandanta",
-
-    # Varga includes
-    "include_d1", "include_d3", "include_d4", "include_d7", "include_d9",
-    "include_d10", "include_d12", "include_d16", "include_d20",
-    "include_d24", "include_d30", "include_d60",
-
-    # Varga output options
-    "varga_d9_degree", "varga_dignity",
-]
-
-PRESETS: dict[str, dict[str, bool]] = {
-    "Basic": {
-        # --- D1 Details ---
-        "opt_nak_lord": False,
-        "opt_aspects": False,
-        "opt_conjunctions": False,
-        "opt_speed_status": False,
-        "opt_dig_bala": False,
-        "opt_combust": True,        # ← ここだけ ON（あなたの方針を踏襲）
-        "opt_planet_war": False,
-        "opt_dignity_det": False,
-        "opt_vargottama": False,
-        "opt_gandanta": False,
-
-        # --- Varga ---
-        "include_d1": True,
-        "include_d9": True,
-        "include_d3": False,
-        "include_d4": False,
-        "include_d7": False,
-        "include_d10": False,
-        "include_d12": False,
-        "include_d16": False,
-        "include_d20": False,
-        "include_d24": False,
-        "include_d30": False,
-        "include_d60": False,
-
-        # --- Varga Output ---
-        "varga_d9_degree": False,
-        "varga_dignity": False,
-    },
-
-    "Standard": {
-        # --- D1 Details ---
-        "opt_nak_lord": True,
-        "opt_aspects": True,
-        "opt_conjunctions": True,
-        "opt_speed_status": False,
-        "opt_dig_bala": False,
-        "opt_combust": True,
-        "opt_planet_war": False,
-        "opt_dignity_det": True,
-        "opt_vargottama": True,
-        "opt_gandanta": True,
-
-        # --- Varga ---
-        "include_d1": True,
-        "include_d9": True,
-        "include_d10": True,
-        "include_d20": True,
-        "include_d60": True,
-        "include_d3": False,
-        "include_d4": False,
-        "include_d7": False,
-        "include_d12": False,
-        "include_d16": False,
-        "include_d24": False,
-        "include_d30": False,
-
-        # --- Varga Output ---
-        "varga_d9_degree": True,
-        "varga_dignity": True,
-    },
-
-    "Advanced": {
-        # 全部 ON（PRESET_KEYS 全部 True）
-        **{k: True for k in PRESET_KEYS},
-    },
-}
-
-# 現在の設定からプリセット名を推定する（完全一致のみ）
-def _detect_preset_from_state() -> str:
-    current = {k: bool(st.session_state.get(k, False)) for k in PRESET_KEYS}
-    for name, profile in PRESETS.items():
-        if current == profile:
-            return name
-    return "Custom"
-
-
-def apply_preset_to_session(preset_name: str) -> None:
-    profile = PRESETS.get(preset_name)
-    if not profile:
-        return
-    for key, val in profile.items():
-        st.session_state[key] = val
-
-
-# --- Output Level UI 用の状態管理 ---
-# 実際に有効なプロファイル（Basic / Standard / Advanced / Custom）
-st.session_state.setdefault("output_profile", "Standard")
-# スライダーの位置（Basic / Standard / Advanced）
-st.session_state.setdefault("output_level", st.session_state["output_profile"])
-# Custom 状態かどうか
-st.session_state.setdefault("is_custom", False)
-
-# 初回だけ Standard プリセットを適用（旧ラジオと同じ挙動）
-if "preset_initialized" not in st.session_state:
-    apply_preset_to_session(st.session_state["output_profile"])
-    st.session_state["preset_initialized"] = True
-
-
-def on_preset_slider_change() -> None:
-    """
-    スライダーの値が変わったときに呼ばれる。
-    - Basic / Standard / Advanced を選んだ → そのプリセットを適用
-    - Custom 状態を解除
-    """
-    new_level = st.session_state.get("output_level", "Standard")
-    # プリセット適用
-    apply_preset_to_session(new_level)
-    # 実際のプロファイルを更新
-    st.session_state["output_profile"] = new_level
-    # Custom 状態解除
-    st.session_state["is_custom"] = False
-
-
-def on_manual_option_changed() -> None:
-    """
-    何かのチェックボックスが手動で変更された時に呼ばれる。
-    - Basic / Standard / Advanced のどれかと完全一致 → そのプリセット名に戻す（Custom解除）
-    - どれとも一致しない → Custom モードに入る
-    """
-    detected = _detect_preset_from_state()
-
-    if detected in ("Basic", "Standard", "Advanced"):
-        # どれかのプリセットと完全一致 → そのプリセットモードに戻す
-        st.session_state["output_profile"] = detected
-        st.session_state["output_level"] = detected   # スライダーも同期
-        st.session_state["is_custom"] = False
-    else:
-        # どれとも一致しない → Custom
-        st.session_state["output_profile"] = "Custom"
-        st.session_state["is_custom"] = True
+def parse_location_input_cached(text: str):
+    return parse_location_input(text)
 
 
 # =======================================================
@@ -587,146 +159,6 @@ with c2:
 with c3:
     st.caption(f":material/public: **{t('ref')}**")
     st.code(t("ref_lahiri"), language=None)
-
-
-# --- Googleマップ貼り付け文字列の汎用パーサ（最初の2つの浮動小数を抽出） ---
-
-def parse_latlon_any(s: str) -> tuple[float, float] | None:
-    """
-    文字列から最初の2つの浮動小数点数を抽出して (lat, lon) を返す。
-    - マイナス記号/小数点に対応
-    - URLや度数表記、スペース区切りなどもカバー
-    - 値域チェック（lat: -90..90, lon: -180..180）
-    """
-    if not s:
-        return None
-    nums = re.findall(r"[-+]?\d+(?:\.\d+)?", s)
-    if len(nums) >= 2:
-        lat, lon = float(nums[0]), float(nums[1])
-        if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
-            return lat, lon
-    return None
-
-# =======================================================
-# Google Maps hybrid coordinate parser (smartphone-friendly)
-# - Accepts:
-#   • lat, lon plain text
-#   • Google Maps long URLs with @lat,lon
-#   • Google Maps official URLs (?q=lat,lon etc.)
-#   • Google Maps short URLs (maps.app.goo.gl ONLY)
-# =======================================================
-
-_URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
-
-def _first_url(text: str) -> str | None:
-    """Extract first URL from arbitrary pasted text."""
-    if not text:
-        return None
-    m = _URL_RE.search(text)
-    return m.group(0) if m else None
-
-
-def _extract_latlon_from_url(url: str) -> tuple[float, float] | None:
-    """Extract lat/lon from Google Maps style URLs (no network).
-    Priority:
-    1) !3dLAT!4dLON (true place coordinates)
-    2) @LAT,LON (map center)
-    3) query parameters (q / query / center)
-    """
-
-    if not url:
-        return None
-
-    # 1) TRUE place coordinates: !3dLAT!4dLON
-    m = re.search(
-        r"!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)",
-        url
-    )
-    if m:
-        lat, lon = float(m.group(1)), float(m.group(2))
-        if -90 <= lat <= 90 and -180 <= lon <= 180:
-            return lat, lon
-
-    # 2) Map center: /@LAT,LON
-    m = re.search(
-        r"@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
-        url
-    )
-    if m:
-        lat, lon = float(m.group(1)), float(m.group(2))
-        if -90 <= lat <= 90 and -180 <= lon <= 180:
-            return lat, lon
-
-    # 3) Official Maps URL parameters
-    try:
-        parsed = urlparse(url)
-        qs = parse_qs(parsed.query)
-        for key in ("q", "query", "center"):
-            if key in qs and qs[key]:
-                m2 = re.search(
-                    r"(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
-                    qs[key][0]
-                )
-                if m2:
-                    lat, lon = float(m2.group(1)), float(m2.group(2))
-                    if -90 <= lat <= 90 and -180 <= lon <= 180:
-                        return lat, lon
-    except Exception:
-        pass
-
-    return None
-
-
-@st.cache_data(show_spinner=False)
-def _resolve_maps_app_short_url(url: str) -> str | None:
-    """
-    Resolve Google Maps short URL.
-    SECURITY: allow ONLY maps.app.goo.gl
-    """
-    try:
-        parsed = urlparse(url)
-        if parsed.netloc.lower() != "maps.app.goo.gl":
-            return None
-
-        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(req, timeout=5) as resp:
-            return resp.geturl()
-    except Exception:
-        return None
-
-
-def parse_latlon_hybrid(text: str) -> tuple[float, float] | None:
-    """
-    Ultimate parser for geo_paste:
-    - Works with smartphone Google Maps share text
-    - Network access ONLY if maps.app.goo.gl is detected
-    """
-    if not text:
-        return None
-
-    # 1) Try URL-based parsing
-    url = _first_url(text)
-    if url:
-        res = _extract_latlon_from_url(url)
-        if res:
-            return res
-
-        # Short URL: maps.app.goo.gl ONLY
-        if urlparse(url).netloc.lower() == "maps.app.goo.gl":
-            final_url = _resolve_maps_app_short_url(url)
-            if final_url:
-                res2 = _extract_latlon_from_url(final_url)
-                if res2:
-                    return res2
-
-    # 2) Fallback: plain "lat, lon" numbers
-    nums = re.findall(r"[-+]?\d+(?:\.\d+)?", text)
-    if len(nums) >= 2:
-        lat, lon = float(nums[0]), float(nums[1])
-        if -90 <= lat <= 90 and -180 <= lon <= 180:
-            return lat, lon
-
-    return None
 
 
 # 入力UIの直前（with st.container(border=True): の上でもOK）
@@ -819,25 +251,14 @@ with st.container(border=True):
     # ② メッセージ表示用（横幅フル：columns の外に置く）
     geo_msg = st.empty()
 
-    # ③ ここで「先に」貼り付けを処理して lat/lon を session_state に反映する
-    #    ※ lat/lon ウィジェットを作る前なので Streamlit に怒られない
-    if geo_paste:
-        res = parse_latlon_hybrid(geo_paste)
-        if res:
-            pasted_lat, pasted_lon = res
-            st.session_state["lat"] = pasted_lat
-            st.session_state["lon"] = pasted_lon
-            st.session_state["tz_dirty"] = True
-            geo_msg.success(
-                t("geo_success").format(
-                    default_lat=pasted_lat,
-                    default_lon=pasted_lon,
-                )
-            )
-        else:
-            geo_msg.error(t("geo_error"))
-    else:
-        geo_msg.empty()
+    # geo/tz state init（安全）
+    ensure_geo_tz_state()
+
+    # ③ 貼り付け処理（変更時のみパース＆lat/lon反映＋tz autoへ）
+    handle_geo_paste(geo_paste, parse_location_input_cached)
+
+    # ③-2 メッセージ表示（rerun-safe）
+    render_geo_message(geo_msg, t, geo_paste)
 
     # tz 自動計算のための dirty フラグ（なければ True で初期化）
     st.session_state.setdefault("tz_dirty", True)
@@ -851,7 +272,7 @@ with st.container(border=True):
             max_value=90.0,
             format="%.5f",
             key="lat",
-            on_change=mark_tz_dirty,
+            on_change=on_latlon_manual_change,
         )
 
     with g4:
@@ -861,18 +282,41 @@ with st.container(border=True):
             max_value=180.0,
             format="%.5f",
             key="lon",
-            on_change=mark_tz_dirty,
+            on_change=on_latlon_manual_change,
         )
 
 
-    # tz 自動計算（ウィジェット生成前）
+    # tz 自動計算（tzウィジェット生成前）
     birth_dt = datetime(
         year=birth_date.year,
         month=birth_date.month,
         day=birth_date.day,
         hour=h, minute=m, second=s
     )
-    recompute_tz_if_dirty(birth_dt)
+
+    st.session_state.setdefault("tz_mode", "auto")
+    st.session_state.setdefault("tz_dirty", True)
+
+    if st.session_state.get("tz_dirty", True):
+        tz_res = resolve_timezone(
+            lat=float(st.session_state["lat"]),
+            lon=float(st.session_state["lon"]),
+            local_dt=birth_dt,
+            manual_utc_offset=(
+                st.session_state["tz"]
+                if st.session_state["tz_mode"] == "manual"
+                else None
+            ),
+        )
+
+        # calc/timezone.py の結果をそのまま反映
+        st.session_state["tz_name"] = tz_res.tz_name
+        st.session_state["tz"] = tz_res.utc_offset_hours
+        st.session_state["tz_dst_auto"] = tz_res.is_dst
+        st.session_state["tz_source"] = tz_res.source
+        st.session_state["tz_confidence"] = tz_res.confidence
+
+        st.session_state["tz_dirty"] = False
 
     # ---- UTC offset / TZ 表示（1行） ----
     tz_l, tz_i, tz_r = st.columns([1, 1.1, 3])
@@ -907,20 +351,23 @@ with st.container(border=True):
     with tz_r:
         # タイムゾーン名の表示（DST/標準時の状態も併記）
         tz_name = st.session_state.get("tz_name", "Unknown")
-        tz_dst = st.session_state.get("tz_dst")
         tz_mode = st.session_state.get("tz_mode", "auto")
 
-        if tz_dst is True:
+        # DST/Standard は「自動判定結果」だけを見る
+        tz_dst_auto = st.session_state.get("tz_dst_auto")
+
+        if tz_dst_auto is True:
             tz_suffix = "DST"
-        elif tz_dst is False:
+        elif tz_dst_auto is False:
             tz_suffix = "Standard"
         else:
             tz_suffix = "Unknown"
+
         mode_badge = "Auto" if tz_mode == "auto" else "Manual"
         icon = ":material/check:" if tz_mode == "auto" else ":material/edit:"
-        # HTMLでスタイルを当てて表示（小さめの文字でグレーアウト）
+
         st.markdown(
-            f"<span style='font-size:0.85rem; color:gray; top: 0.5rem; position: relative;'>"
+            f"<span style='font-size:0.85rem; color:gray; top: 0.4rem; position: relative;'>"
             f"{icon} Timezone: <b>{tz_name}</b> ({tz_suffix}) [{mode_badge}]"
             f"</span>",
             unsafe_allow_html=True,
@@ -932,6 +379,7 @@ with st.container(border=True):
     gender_code = GENDER_MAP.get(st.session_state["gender"])  # NoneならNone
 
 
+ensure_preset_state(default_profile="Standard")
 # =======================================================
 # 5) 出力設定UI（Preset Slider + Tabs）
 # =======================================================
@@ -942,7 +390,6 @@ with st.container(border=True):
 
 # --- Output Level スライダー + Custom 表示 ---
     st.write(f"{t('output_level')}")
-
     col_slider, col_status = st.columns([7, 3])
 
     with col_slider:
@@ -1009,14 +456,7 @@ with st.container(border=True):
             )
 
     # ---- 説明文（current_profile に応じて表示） ----
-    if st.session_state.get("is_custom", False):
-        current_profile = "Custom"
-    else:
-        current_profile = st.session_state.get(
-            "output_profile",
-            st.session_state.get("output_level", "Standard"),
-        )
-
+    current_profile = current_profile_for_desc()
     st.info(t(f"preset_desc_{current_profile.lower()}"))
 
     # ---- Tabs Reorganized ----
@@ -1143,7 +583,7 @@ with tab_varga:
         varga_dignity   = st.checkbox(t("varga_d3d60_dig"), key="varga_dignity", on_change=on_manual_option_changed)
 
 # =======================================================
-# ダシャータブ（futureは disabled）
+# ダシャータブ
 # =======================================================
 with tab_dasha:
     opt_vimshottari = st.checkbox(t("vimshottari"), value=True)
@@ -1209,130 +649,12 @@ def apply_ordering_to_chart(chart_dict: Optional[dict]) -> None:
         for pkey, entry in list(chart_dict["planets"].items()):
             chart_dict["planets"][pkey] = reorder_planet_entry_order(entry)
 
-def apply_output_options(charts: dict, opt: dict) -> dict:
-    import copy
-    charts = copy.deepcopy(charts)
-
-    # -------------------------------
-    # D1（planets + derived）
-    # -------------------------------
-    d1 = charts.get("D1")
-    if isinstance(d1, dict):
-        # ----- D1 Asc -----
-        asc = d1.get("Asc")
-        if isinstance(asc, dict):
-            if not opt.get("nakshatra_lord", False):
-                if isinstance(asc.get("nakshatra"), dict):
-                    asc["nakshatra"].pop("lord", None)
-
-        # ----- planets -----
-        if isinstance(d1.get("planets"), dict):
-            for p, rec in d1["planets"].items():
-                if not isinstance(rec, dict):
-                    continue
-
-                # planets.* の処理（既存のまま）
-                if not opt.get("nakshatra_lord", False):
-                    if isinstance(rec.get("nakshatra"), dict):
-                        rec["nakshatra"].pop("lord", None)
-
-                if not opt.get("aspects", False):
-                    rec.pop("aspects_to_sign", None)
-
-                if not opt.get("conjunctions", False):
-                    rec.pop("occupancy_in_sign", None)
-
-                if not opt.get("combust", False):
-                    rec.pop("combust", None)
-
-                if not opt.get("planet_war", False):
-                    rec.pop("planet_war", None)
-                
-                if not opt.get("dignity_detail", False):
-                    dignity = rec.get("dignity")
-                    if isinstance(dignity, str):
-                        # 残したいものだけ whitelist
-                        KEEP_DIGNITIES = {"exalted", "debilitated", "moolatrikona", "owned"}
-                        if dignity not in KEEP_DIGNITIES:
-                            rec.pop("dignity", None)
-
-                if not opt.get("dig_bala", False):
-                    rec.pop("dig_bala", None)
-
-                if not opt.get("vargottama", False):
-                    rec.pop("vargottama", None)
-
-                if not opt.get("gandanta", False):
-                    rec.pop("gandanta", None)
-
-                if not opt.get("speed_status", False):
-                    rec.pop("speed", None)
-
-        # ----- derived -----
-        d_derived = d1.get("derived")
-        if isinstance(d_derived, dict):
-
-            if not opt.get("dig_bala", False):
-                d_derived.pop("dig_bala", None)
-
-            if not opt.get("vargottama", False):
-                d_derived.pop("vargottama", None)
-
-            if not opt.get("gandanta", False):
-                d_derived.pop("gandanta", None)
-
-            if not opt.get("aspects", False):
-                d_derived.pop("aspects_to_sign", None)
-
-            if not opt.get("conjunctions", False):
-                d_derived.pop("occupancy_in_sign", None)
-
-            if not opt.get("combust", False):
-                d_derived.pop("combust", None)
-
-            if not opt.get("planet_war", False):
-                d_derived.pop("planetary_war", None)
-
-            # 将来的にON/OFFするなら opt_lordship を追加
-            # 今は常に残す
-            # if not opt.get("lordship", False):
-            #     d_derived.pop("lordship_to_houses", None)
-
-    # -------------------------------
-    # D9
-    # -------------------------------
-    d9 = charts.get("D9")
-    if isinstance(d9, dict):
-        # --- D9 Asc ---
-        if isinstance(d9.get("Asc"), dict):
-            if not opt.get("varga_d9_degree", False):
-                d9["Asc"].pop("degree", None)
-        # planets の degree 削除
-        if isinstance(d9.get("planets"), dict):
-            if not opt.get("varga_d9_degree", False):
-                for p, rec in d9["planets"].items():
-                    rec.pop("degree", None)
-
-    # -------------------------------
-    # D3〜D60
-    # -------------------------------
-    for cname, chart in charts.items():
-        if cname in ("D1", "D9"):
-            continue
-        if not isinstance(chart, dict):
-            continue
-
-        if not opt.get("varga_dignity", False):
-            if isinstance(chart.get("planets"), dict):
-                for p, rec in chart["planets"].items():
-                    rec.pop("dignity", None)
-
-    return charts
 
 # =======================================================
 # 6) 生成（計算ロジックはそのまま）
 # =======================================================
 if go:
+    tz_offset = float(st.session_state["tz"])
     # 0) 入力 → UTC → JD(UT)
     hh = float(h) + float(m) / 60.0 + float(s) / 3600.0
     hh_utc = hh - float(tz_offset)
@@ -1474,18 +796,8 @@ if go:
                 )
 
     # 7) キー順の整形（存在時のみ）
-    apply_ordering_to_chart(cast(dict, vargas.get("D1")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D9")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D3")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D4")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D7")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D10")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D12")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D16")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D20")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D24")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D30")))
-    apply_ordering_to_chart(cast(dict, vargas.get("D60")))
+    for k in ("D1","D9","D3","D4","D7","D10","D12","D16","D20","D24","D30","D60"):
+        apply_ordering_to_chart(cast(dict, vargas.get(k)))
     
     # --- ダシャ（Vimshottari） ---
     from calc.dasha import compute_vimshottari_md_with_context, _tz_from_offset_hours
@@ -1501,16 +813,19 @@ if go:
         horizon_years=110
     )
 
+    # UTC offset をここで一度だけ確定させる（重要）
+    tz_offset = st.session_state.get("tz")
+
     # 8) birth ISO8601
     birth_iso = (
         f"{birth_date.isoformat()}T"
         f"{int(h):02d}:{int(m):02d}:{int(s):02d}"
-        f"{format_tz_offset_for_iso(tz_offset)}"
+        f"{format_tz_offset_for_iso(float(tz_offset) if tz_offset is not None else 0.0)}"
     )
 
     # 出力生成時刻（tz付き ISO8601、秒まで）
-    tz = _tz_from_offset_hours(tz_offset)
-    output_at = datetime.now(tz).isoformat(timespec="seconds")
+    tzinfo = _tz_from_offset_hours(float(tz_offset) if tz_offset is not None else 0.0)
+    output_at = datetime.now(tzinfo).isoformat(timespec="seconds")
 
     # 9) トップレベル JSON
     out = {
@@ -1526,9 +841,20 @@ if go:
             "name": user_name,
             "gender": gender_code,
             "birth": birth_iso,
-            "latitude": float(f"{geo_lat:.2f}"),
-            "longitude": float(f"{geo_lon:.2f}"),
+            "latitude": float(f"{geo_lat:.4f}"),
+            "longitude": float(f"{geo_lon:.4f}"),
         },
+
+        # timezone 情報
+        "timezone": {
+            "name": st.session_state.get("tz_name"),
+            # "utc_offset": float(st.session_state.get("tz")),
+            "utc_offset": float(tz_offset) if tz_offset is not None else None,
+            "dst": st.session_state.get("tz_dst_auto"),
+            "source": st.session_state.get("tz_source", "auto"),
+            "confidence": st.session_state.get("tz_confidence", "high"),
+        },
+
         "calculation_settings": {
             "zodiac": "Sidereal",
             "ayanamsa": {"name": "Lahiri", "degree": round(aya_deg_float, 6)},
