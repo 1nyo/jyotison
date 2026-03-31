@@ -22,17 +22,20 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "male": "男性", "female": "女性",
         "birth": "出生日", "birth_help": "YYYY/MM/DD 形式で入力, 時は24時間制",
         "Hr": "時 (24H)", "Min": "分", "Sec": "秒",
-        "geo": "出生地", "geo_gmap": "（初期値は東京）座標取得先（推奨）：",
+        "geo": "出生地", "geo_gmap": ":material/content_copy: 座標取得先：",
         "gmap": "Googleマップ",
-        "geo_paste": ":material/location_on: Googleマップの座標を貼り付け",
-        "geo_help": "地点を右クリックして表示される数値（例: 35.6812, 139.7671）をコピー、または Googleマップの共有リンク（maps.app.goo.gl/XXXX）をそのまま貼り付けできます。",
+        "geo_paste": ":material/location_on: Googleマップの座標を :material/content_paste: 貼り付け",
+        "geo_help": "地点を右クリックして表示される数値（例: 35.6812, 139.7671）をコピー、  \n"
+                    "または Googleマップの共有リンク（maps.app.goo.gl/XXXX）のコピーを  \n"
+                    "そのまま貼り付けてください。",
         "geo_ph": "例: 35.6812, 139.7671", "geo_clear": "貼り付けた場所をクリア",
         "geo_success": "座標を認識しました: 緯度 {default_lat} / 経度 {default_lon}",
         "geo_notice_low_conf": "※ 共有リンクから推定した位置です。必要に応じて数値を確認・調整してください。",
         "geo_error": "無効な座標形式です。35.123, 139.456 のような数値を入力してください。",
         "lat": "緯度（北緯+）", "lon": "経度（東経+）",
-        "tz": "UTCオフセット", "tz_auto": "（自動認識）",
-        "tz_help": "タイムゾーン・夏時間を出生日・緯度経度から自動検出します。手動で修正が必要な場合は変更できます。",
+        "tz": ":material/globe: UTCオフセット", "tz_auto": "（自動認識）",
+        "tz_help": "タイムゾーン・夏時間を出生日・緯度経度から自動検出します。  \n"
+                   "手動で修正が必要な場合は変更できます。",
 
         # Output Settings
         "output_settings": "出力方法の設定",
@@ -76,7 +79,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "chk_speed_status": "速度の特異値（高速/低速/停止）",
         "chk_combust": "コンバスト",
         "chk_planet_war": "惑星戦争（グラハ・ユッダ）",
-        "chk_dignity_detail": "品位に有効/中立/敵対をつける",
+        "chk_dignity_detail": "品位に友好/中立/敵対をつける",
         "chk_dig_bala": "ディグ・バラ",
         "chk_vargottama": "ヴァルゴッタマ",
         "chk_gandanta": "ガンダーンタ",
@@ -123,17 +126,20 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "male": "Male", "female": "Female",
         "birth": "Birth Date", "birth_help": "Enter date in YYYY/MM/DD format, time in 24-hour format",
         "Hr": "Hour (24H)", "Min": "Minute", "Sec": "Second",
-        "geo": "Birth Place", "geo_gmap": "(Default: Tokyo) Get coordinates from ",
+        "geo": "Birth Place", "geo_gmap": ":material/content_copy: Get coordinates from ",
         "gmap": "Google Maps",
-        "geo_paste": ":material/location_on: Paste Google Map Coordinates",
-        "geo_help": "Copy the coordinates shown by right-clicking a location (e.g. 35.6812, 139.7671), or paste a Google Maps share link (maps.app.goo.gl/XXXX) directly.",
+        "geo_paste": ":material/content_paste: Paste :material/location_on: Google Maps Coordinates",
+        "geo_help": "Copy the coordinates shown by right-clicking a location (e.g. 35.6812, 139.7671)  \n"
+                    "or a Google Maps share link (maps.app.goo.gl/XXXX), and paste directly.",
         "geo_ph": "e.g. 35.6812, 139.7671", "geo_clear": "Clear pasted location",
         "geo_success": "Coordinates recognized: Latitude {default_lat} / Longitude {default_lon}",
         "geo_notice_low_conf": "Note: This location was inferred from a share link. Please review and adjust if needed.",
         "geo_error": "Invalid coordinate format. Please enter numbers like 35.123, 139.456.",
         "lat": "Latitude (North +)", "lon": "Longitude (East +)",
-        "tz": "UTC Offset", "tz_auto": "(Auto-detected)",
-        "tz_help": "Time zone and Daylight Saving Time (DST) are automatically detected based on the birth date and coordinates. You can manually adjust them if necessary.",
+        "tz": ":material/globe: UTC Offset", "tz_auto": "(Auto-detected)",
+        "tz_help": "Time zone and Daylight Saving Time (DST) are automatically  \n"
+                   "detected based on the birth date and coordinates.  \n"
+                   "You can manually adjust them if necessary.",
 
         # Output
         "output_settings": "Output Settings",

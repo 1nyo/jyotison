@@ -1,6 +1,6 @@
-![JyotiSON](jyotison.png)
-
 # JyotiSON
+
+![JyotiSON](assets/jyotison.png)
 
 **JyotiSON** is a web application that generates structured **Vedic Astrology (Jyotish) chart data in JSON format**.  
 It is engineered specifically for **LLM-driven analysis and machine interpretation**, bypassing human-centric visual displays to provide high-fidelity data.  
@@ -206,6 +206,16 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 ## 📜 License
 
 MIT License
+
+---
+
+## Privacy notice / プライバシーについて
+
+This app uses the birth date, time, and location you enter only for calculation purposes.  
+Input data may be temporarily retained by your browser and the app session on the same device, but it is not stored on the server.
+
+本アプリは、入力された出生日時・出生地などの情報を計算処理以外の目的で利用することはありません。
+入力内容は、ブラウザおよびアプリのセッション機能により、同じ端末・ブラウザでは一時的に保持される場合がありますが、サーバー側に保存されることはありません。
 
 ---
 

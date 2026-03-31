@@ -1,5 +1,6 @@
 # streamlit_app.py
 import json
+from pathlib import Path
 from datetime import date, datetime
 from typing import Optional, cast, Literal
 import re
@@ -53,10 +54,43 @@ from output.filters import apply_output_options
 # =======================================================
 st.set_page_config(
     page_title="JyotiSON | Jyotish Chart JSON Generator for AI",
-    page_icon="☸️",
+    page_icon="🪐",
     layout="centered",
 )
 validate_lang_dict(strict=False)
+
+# =======================================================
+# Create logo svg
+# =======================================================
+
+def load_svg(path: str) -> str:
+    p = Path(path)
+    if not p.exists():
+        return ""
+    return p.read_text(encoding="utf-8")
+
+st.markdown(
+    """
+    <style>
+    .jyotison-logo {
+        width: 115px;
+        pointer-events: none;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+logo_svg = load_svg("assets/logo.svg")
+
+logo_html = f"""
+<div align="center">
+  <div class="jyotison-logo">
+    {logo_svg}
+  </div>
+</div>
+""" if logo_svg else ""
+
 
 # =======================================================
 # 1) セッション状態の初期化
@@ -94,13 +128,13 @@ def parse_location_input_cached(text: str):
 # =======================================================
 # 2) ページ上部の余白/CSS・ヘッダー（EN/JP 切り替えもここ）
 # =======================================================
-st.markdown("<style>.block-container {padding-top: 2rem;}</style>", unsafe_allow_html=True)
+st.markdown("<style>.block-container {padding-top: 0.5rem;}</style>", unsafe_allow_html=True)
 
 st.markdown(
     """
     <style>
     .header-container {text-align: center; padding: 0 0 1.5rem 0; font-family: 'Inter', 'sans-serif';}
-    .logo-text {font-size: 4rem; font-weight: 800; letter-spacing: -2px; margin-bottom: 0; line-height: 1;}
+    .logo-text {font-size: 4rem; font-weight: 750; letter-spacing: -3px; margin-bottom: 0; line-height: 1;}
     .yoti {opacity: 0.8; font-weight: 500; letter-spacing: -4px; padding: 0 2px;}
     .version-text { font-size: 1rem; vertical-align: super; opacity: 0.5; margin-left: 2px; position: relative; top: -0.8rem; font-weight: 400; letter-spacing: 0; }
     .subtitle-text {font-size: 1rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
@@ -116,6 +150,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+h1, h2 = st.columns([4.5, 1])
+with h1:
+    st.markdown(logo_html, unsafe_allow_html=True)
+with h2:
+    st.radio(
+        label=":material/language: Language",
+        options=["EN", "JP"],
+        key="lang",                 # ← 状態はセッションに直結
+        horizontal=False,
+        # label_visibility="collapsed"  # ← ラベル非表示でスッキリ
+    )
+
+# URL の ?lang と、現在の選択 lang が違う場合だけ ?lang を URL から消す
+qp = st.query_params  # dict-like
+if "lang" in qp and qp["lang"] != st.session_state.lang:
+    del qp["lang"]
+
 # ヘッダー & 言語トグル
 col1, col2 = st.columns([6, 1])
 with col1:
@@ -130,18 +181,34 @@ with col1:
         unsafe_allow_html=True
     )
 with col2:
-    st.radio(
-        label="Language",
-        options=["EN", "JP"],
-        key="lang",                 # ← 状態はセッションに直結
-        horizontal=False,
-        # label_visibility="collapsed"  # ← ラベル非表示でスッキリ
-    )
+    # ダイアログ形式の例
+    # if st.button(":material/info: How to use", help="使い方の説明を表示"):
+        
+    #     @st.dialog("JyotiSON User Guide") # 画像を見やすくするため幅を広めに設定
+    #     def show_guide():
+    #         tab1, tab2 = st.tabs([":material/help: How to use", ":material/description: About"])
+            
+    #         with tab1:
+    #             st.markdown("### 1. 出生データの入力")
+    #             # ローカルの画像ファイルを表示する場合
+    #             # st.image("step1_screenshot.png", caption="日時と場所を入力してください")
+                
+    #             # サンプルとしてURL（プレースホルダー）を使用する場合
+    #             st.image("https://placehold.jp/600x300.png", caption="入力画面のサンプルイメージ")
+                
+    #             st.markdown("""
+    #             **操作手順:**
+    #             1. 日付と時刻を選択
+    #             2. 緯度・経度を入力（または地図から選択）
+    #             3. **Generate** ボタンをクリック！
+    #             """)
 
-# URL の ?lang と、現在の選択 lang が違う場合だけ ?lang を URL から消す
-qp = st.query_params  # dict-like
-if "lang" in qp and qp["lang"] != st.session_state.lang:
-    del qp["lang"]
+    #         with tab2:
+    #             st.write("JyotiSONは、インド占星術のデータをLLMが読み取りやすいJSON形式で出力します。")
+
+    #     show_info_dialog = show_guide()
+    pass
+
 
 # =======================================================
 # 3) Engine Info (Grid Layout)
@@ -224,7 +291,7 @@ with st.container(border=True):
 
     st.markdown(
     f"""
-    {t("geo")} <span style="font-size:0.85rem;">{t('geo_gmap')}
+    {t("geo")} <span style="font-size:0.85rem; margin-left: 20px;">{t('geo_gmap')}
     <a href="https://www.google.com/maps" target="_blank">
     :material/open_in_new: {t("gmap")}</a>
     </span>
@@ -319,21 +386,14 @@ with st.container(border=True):
         st.session_state["tz_dirty"] = False
 
     # ---- UTC offset / TZ 表示（1行） ----
-    tz_l, tz_i, tz_r = st.columns([1, 1.1, 3])
+    tz_l, tz_i, tz_r = st.columns([1.1, 1, 2.8])
 
     with tz_l:
-            st.markdown(
-                f":material/public: "
-                f"<span title='{t('tz_help')}' style='font-size:0.9rem; cursor: help;'>"
-                f"{t('tz')}"
-                f"</span>"
-                f"<div style='margin-top: -24px;'>"  # ← ここで上の行との間隔を詰める
-                f"<span style='font-size:0.85rem; color:gray; margin-left: 1rem;'>"
-                f"{t('tz_auto')}"
-                f"</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            f"<span style='font-size:0.9rem;'>{t('tz')}</span>",
+            help=t("tz_help"),
+            unsafe_allow_html=True,
+        )
 
     with tz_i:
         # UTCオフセットの入力（自動計算された値が初期値として入る）
@@ -367,7 +427,7 @@ with st.container(border=True):
         icon = ":material/check:" if tz_mode == "auto" else ":material/edit:"
 
         st.markdown(
-            f"<span style='font-size:0.85rem; color:gray; top: 0.4rem; position: relative;'>"
+            f"<span style='display: inline-block; font-size: 0.85rem; color: gray; margin-top: 0.6rem;'>"
             f"{icon} Timezone: <b>{tz_name}</b> ({tz_suffix}) [{mode_badge}]"
             f"</span>",
             unsafe_allow_html=True,
@@ -380,6 +440,9 @@ with st.container(border=True):
 
 
 ensure_preset_state(default_profile="Standard")
+# ★追加：スライダー変更の空振り対策（前回値を保持）
+st.session_state.setdefault("_prev_output_level", st.session_state.get("output_level", "Standard"))
+
 # =======================================================
 # 5) 出力設定UI（Preset Slider + Tabs）
 # =======================================================
@@ -397,10 +460,15 @@ with st.container(border=True):
         selected_level = st.select_slider(
             "preset_slider",
             options=["Basic", "Standard", "Advanced"],
-            key="output_level",          # セッションに直結
+            key="output_level",
             label_visibility="collapsed",
-            on_change=on_preset_slider_change,
         )
+
+        # ★追加：値が変わった“その場”でプリセット適用（初回の空振りを防止）
+        prev = st.session_state.get("_prev_output_level", "Standard")
+        if selected_level != prev:
+            st.session_state["_prev_output_level"] = selected_level
+            on_preset_slider_change()
 
         # Custom 中だけ、スライダーを薄く表示
         if st.session_state.get("is_custom", False):
