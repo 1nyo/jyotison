@@ -3,3 +3,5 @@ __pycache__/
 # Pythonのキャッシュファイルを個別に無視
 *.pyc
 .vscode/
+# ローカルのUIテスト用ファイル
+uitest.py
