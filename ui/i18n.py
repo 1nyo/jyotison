@@ -1,7 +1,49 @@
 # i18n.py
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, Literal
 import streamlit as st
+
+# ---------------------------------------------------------------------------
+# 1. 有効な翻訳キーを Literal 型として定義（IDE補完・型チェック用）
+# ---------------------------------------------------------------------------
+I18nKey = Literal[
+    "subtitle", "engine", "model", "ref", "engine_swiss", "model_drik", "ref_lahiri",
+    "help.button", "help.button_help", "help.tab.how", "help.tab.about", "help.tab.faq", "help.tab.trouble",
+    "help.how.title", "help.how.step1.title", "help.how.step1.body", "help.how.step1.image",
+    "help.how.step2.title", "help.how.step2.body", "help.how.step2.note", "help.how.step2.image",
+    "help.how.step3.title", "help.how.step3.body", "help.how.step3.image",
+    "help.how.output.title", "help.how.output.body",
+    "help.about.title", "help.about.body",
+    "help.about.philosophy.title", "help.about.philosophy.body",
+    "help.about.assumptions.title", "help.about.assumptions.body",
+    "help.about.disclaimer",
+    "help.faq.title", "help.faq.q1.q", "help.faq.q1.a",
+    "help.faq.q2.q", "help.faq.q2.a",
+    "help.faq.q3.q", "help.faq.q3.a",
+    "help.faq.q4.q", "help.faq.q4.a",
+    "help.trouble.title", "help.trouble.checklist",
+    "help.trouble.slow.q", "help.trouble.slow.a",
+    "help.trouble.large.q", "help.trouble.large.a",
+    "help.footer",
+    "input_bd", "name", "gender", "choose", "male", "female", "birth", "birth_help",
+    "Hr", "Min", "Sec", "geo", "geo_gmap", "gmap", "geo_paste", "geo_help",
+    "geo_ph", "geo_clear", "geo_success", "geo_notice_low_conf", "geo_error",
+    "lat", "lon", "tz", "tz_help",
+    "output_settings", "output_level",
+    "preset_desc_basic", "preset_desc_standard", "preset_desc_advanced", "preset_desc_custom",
+    "tab_basic", "tab_d1", "tab_varga", "tab_dasha",
+    "node_type", "node_mean", "node_true", "ck_mode", "ck_8", "ck_7", "minimize",
+    "d1_interactions", "d1_motion", "d1_conditions", "d1_special",
+    "chk_nak_lord", "chk_aspects", "chk_conjunctions", "chk_speed_status",
+    "chk_combust", "chk_planet_war", "chk_dignity_detail", "chk_dig_bala",
+    "chk_vargottama", "chk_gandanta",
+    "d1", "d2", "d3", "d4", "d7", "d9",
+    "d10", "d12", "d16", "d20", "d24",
+    "d27", "d30", "d40", "d45", "d60",
+    "varga_op", "varga_d9_deg", "varga_d3d60_deg", "varga_d3d60_dig",
+    "vimshottari", "chara_dasha",
+    "btn_generate", "preview", "goto_download", "download"
+]
 
 # ---- 翻訳辞書（ここに LANG_DICT を移動）----
 LANG_DICT: Dict[str, Dict[str, str]] = {
@@ -16,15 +58,77 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "model_drik": "Drik（観測準拠）",
         "ref_lahiri": "Lahiri（サイデリアル）",
 
+        # Help
+        "help.button": "Help",
+        "help.button_help": "使い方・FAQを表示",
+
+        "help.tab.how": "使い方",
+        "help.tab.about": "About",
+        "help.tab.faq": "FAQ",
+        "help.tab.trouble": "困ったとき",
+
+        "help.how.title": "使い方（最短3ステップ）",
+
+        "help.how.step1.title": "1) 出生データを入力",
+        "help.how.step1.body": "- 日時を入力\n- 地名 / 緯度経度 / Google Mapsリンクが使用可能",
+        "help.how.step1.image": "日時と場所の入力例",
+
+        "help.how.step2.title": "2) 出力プリセットを選択",
+        "help.how.step2.body": "- Basic / Standard / Advanced / Custom\n- 迷ったら Standard",
+        "help.how.step2.note": "LLM用途では『意味単位』の一貫性が重要です。",
+        "help.how.step2.image": "プリセット選択",
+
+        "help.how.step3.title": "3) Generate → JSON取得",
+        "help.how.step3.body": "- Generateをクリック\n- JSONをコピーしてLLMへ",
+        "help.how.step3.image": "JSON出力例",
+
+        "help.how.output.title": "主な出力内容",
+        "help.how.output.body": "- D1 / D9\n- Panchanga\n- Dasha\n- Enrich（解釈補助）",
+
+        "help.about.title": "JyotiSONとは",
+        "help.about.body": "JyotiSONはインド占星術の計算結果をLLM向けJSONとして出力するWebアプリです。",
+
+        "help.about.philosophy.title": "設計思想",
+        "help.about.philosophy.body": "- 人間可読より機械可読\n- 一貫性と意味保持を最優先",
+
+        "help.about.assumptions.title": "計算前提",
+        "help.about.assumptions.body": "- Sidereal / Lahiri\n- Drik Siddhanta\n- Whole Sign",
+
+        "help.about.disclaimer": "本ツールは娯楽・研究用途です。重要判断には使用しないでください。",
+
+        "help.faq.title": "よくある質問",
+        "help.faq.q1.q": "地名で座標が取れない",
+        "help.faq.q1.a": "Google Mapsの共有リンクか緯度経度を直接入力してください。",
+
+        "help.faq.q2.q": "タイムゾーンが不安",
+        "help.faq.q2.a": "出生年のDSTに注意し、必要なら手動指定してください。",
+
+        "help.faq.q3.q": "おすすめプリセットは？",
+        "help.faq.q3.a": "最初は Standard を推奨します。",
+
+        "help.faq.q4.q": "LLM向けおすすめプロンプト",
+        "help.faq.q4.a": "あなたは熟練のインド占星術アナリストです。以下のJSONを分析してください。",
+
+        "help.trouble.title": "トラブルシューティング",
+        "help.trouble.checklist": "1. 日時\n2. タイムゾーン\n3. 緯度経度\n4. プリセット",
+
+        "help.trouble.slow.q": "生成が遅い",
+        "help.trouble.slow.a": "Advanced項目を減らすかStandardに戻してください。",
+
+        "help.trouble.large.q": "JSONが大きすぎる",
+        "help.trouble.large.a": "出力項目を絞るか分割して使用してください。",
+
+        "help.footer": "Tip: assets/guide_step*.png を置くとスクリーンショットが表示されます。",
+
         # Input
         "input_bd": "出生情報の入力",
         "name": "名前", "gender": "性別", "choose": "選択...",
         "male": "男性", "female": "女性",
         "birth": "出生日", "birth_help": "YYYY/MM/DD 形式で入力, 時は24時間制",
         "Hr": "時 (24H)", "Min": "分", "Sec": "秒",
-        "geo": "出生地", "geo_gmap": ":material/content_copy: 座標取得先：",
+        "geo": "出生地", "geo_gmap": "座標取得先：",
         "gmap": "Googleマップ",
-        "geo_paste": ":material/location_on: Googleマップの座標を :material/content_paste: 貼り付け",
+        "geo_paste": "Googleマップの座標を貼り付け",
         "geo_help": "地点を右クリックして表示される数値（例: 35.6812, 139.7671）をコピー、  \n"
                     "または Googleマップの共有リンク（maps.app.goo.gl/XXXX）のコピーを  \n"
                     "そのまま貼り付けてください。",
@@ -33,7 +137,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "geo_notice_low_conf": "※ 共有リンクから推定した位置です。必要に応じて数値を確認・調整してください。",
         "geo_error": "無効な座標形式です。35.123, 139.456 のような数値を入力してください。",
         "lat": "緯度（北緯+）", "lon": "経度（東経+）",
-        "tz": ":material/globe: UTCオフセット", "tz_auto": "（自動認識）",
+        "tz": "UTCオフセット",
         "tz_help": "タイムゾーン・夏時間を出生日・緯度経度から自動検出します。  \n"
                    "手動で修正が必要な場合は変更できます。",
 
@@ -87,6 +191,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         # Varga
         "d1": "D1 Rashi（基本）* 必須",
         "d9": "D9 Navamsa（本質層）",
+        "d2": "D2 Hora（財・リソース）",
         "d3": "D3 Drekkana（兄弟姉妹）",
         "d4": "D4 Chaturthamsa（家・不動産）",
         "d7": "D7 Saptamsa（子ども・想像力）",
@@ -95,11 +200,15 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "d16": "D16 Shodasamsa（乗り物・快適性）",
         "d20": "D20 Vimsamsa（霊性層）",
         "d24": "D24 Siddhamsa（学び・教育）",
+        "d27": "D27 Nakshatramsa（闘争力・身体強度）",
         "d30": "D30 Trimshamsa（不運・逆境）",
+        "d40": "D40 Khavedamsa（家系的徳・遺産）",
+        "d45": "D45 Akshavedamsa（性質・品質）",
         "d60": "D60 Shashtyamsa（カルマ層）",
         "varga_op": "分割図の出力オプション（クリックで展開）",
         "varga_d9_deg": "D9の度数を出力",
-        "varga_d3d60_dig": "D1/D9 以外の分割図で品位（高揚/減衰のみ）を出力する",
+        "varga_d3d60_dig": "D1/D9 以外の分割図でも品位を出力する",
+        "varga_d3d60_deg": "D1/D9 以外の分割図でサイン内度数を出力（デバッグ用）",
 
         # Dasha
         "vimshottari": "ヴィムショッタリ・ダシャー",
@@ -108,11 +217,130 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         # Buttons
         "btn_generate": "AI向けJSONを生成（プレビュー）",
         "preview": "プレビュー（JSON 内容確認）",
+        "goto_download": "ダウンロードへ",
         "download": "最小化JSONをダウンロード（{file_name}）",
     },
 
     "EN": {
         "subtitle": "Jyotish Chart JSON Generator for AI",
+
+        # =========================
+        # Help / User Guide (EN)
+        # =========================
+
+        "help.button": "Help",
+        "help.button_help": "Show usage guide and FAQ",
+
+        "help.tab.how": "How to use",
+        "help.tab.about": "About",
+        "help.tab.faq": "FAQ",
+        "help.tab.trouble": "Troubleshooting",
+
+        # --- How to use ---
+        "help.how.title": "How to Use (3 Quick Steps)",
+
+        "help.how.step1.title": "1) Enter Birth Data",
+        "help.how.step1.body":
+            "- Enter date and time of birth\n"
+            "- Location can be provided as:\n"
+            "  - Place name\n"
+            "  - Latitude / longitude\n"
+            "  - Google Maps share link",
+        "help.how.step1.image": "Birth date, time, and location input example",
+
+        "help.how.step2.title": "2) Choose an Output Preset",
+        "help.how.step2.body":
+            "- Select from Basic / Standard / Advanced / Custom\n"
+            "- If unsure, start with **Standard**",
+        "help.how.step2.note":
+            "For LLM usage, consistency by semantic unit is more important than raw volume.",
+        "help.how.step2.image": "Output preset selection",
+
+        "help.how.step3.title": "3) Generate → Get JSON",
+        "help.how.step3.body":
+            "- Click **Generate**\n"
+            "- Copy the generated JSON and paste it into your LLM",
+        "help.how.step3.image": "Generated JSON output example",
+
+        "help.how.output.title": "Main Output Contents",
+        "help.how.output.body":
+            "- D1 / D9 charts\n"
+            "- Panchanga (Tithi, Nakshatra, etc.)\n"
+            "- Vimshottari Dasha\n"
+            "- Enrichment data (lords, aspects, dignity, etc.)",
+
+        # --- About ---
+        "help.about.title": "What is JyotiSON?",
+        "help.about.body":
+            "JyotiSON is a web application that generates Jyotish (Vedic astrology) "
+            "calculation results as **LLM-friendly structured JSON**.",
+
+        "help.about.philosophy.title": "Design Philosophy",
+        "help.about.philosophy.body":
+            "- Prioritize machine-readability over human-readable formatting\n"
+            "- Preserve semantic meaning rather than visual presentation\n"
+            "- Avoid unnecessary verbosity to ensure stable LLM analysis",
+
+        "help.about.assumptions.title": "Calculation Assumptions",
+        "help.about.assumptions.body":
+            "- Zodiac: Sidereal (Lahiri Ayanamsa)\n"
+            "- Calculation model: Drik Siddhanta\n"
+            "- House system: Whole Sign",
+
+        "help.about.disclaimer":
+            "This tool is intended for research and exploratory use only. "
+            "Do not rely on it for medical, legal, financial, or other critical decisions.",
+
+        # --- FAQ ---
+        "help.faq.title": "Frequently Asked Questions",
+
+        "help.faq.q1.q": "Location lookup does not work with place names",
+        "help.faq.q1.a":
+            "Use a Google Maps share link or enter latitude and longitude directly.",
+
+        "help.faq.q2.q": "I'm unsure about the timezone or DST",
+        "help.faq.q2.a":
+            "Timezone is auto-detected when possible. For historical dates, "
+            "please verify daylight saving time and switch to manual mode if needed.",
+
+        "help.faq.q3.q": "Which preset should I use?",
+        "help.faq.q3.a":
+            "Start with **Standard**. Move to Advanced or Custom only if additional "
+            "data is clearly required.",
+
+        "help.faq.q4.q": "Recommended prompt for LLM analysis",
+        "help.faq.q4.a":
+            "You are an experienced Jyotish analyst. "
+            "Analyze the following JyotiSON JSON and explain:\n"
+            "(1) personality traits\n"
+            "(2) career tendencies\n"
+            "(3) relationships\n"
+            "(4) overall trends for the next 12 months.\n"
+            "Cite relevant JSON keys (e.g., d1.planets, d9, dasha) as evidence.",
+
+        # --- Troubleshooting ---
+        "help.trouble.title": "Troubleshooting",
+
+        "help.trouble.checklist":
+            "Check the following first:\n"
+            "1. Date and time (AM/PM)\n"
+            "2. Timezone and daylight saving time\n"
+            "3. Latitude / longitude sign (+ / -)\n"
+            "4. Output preset settings",
+
+        "help.trouble.slow.q": "Generation is slow",
+        "help.trouble.slow.a":
+            "Advanced or Custom presets increase computation cost. "
+            "Try switching back to Standard and add options gradually.",
+
+        "help.trouble.large.q": "The JSON output is too large for my LLM",
+        "help.trouble.large.a":
+            "Reduce output options, switch to a lighter preset, or split the JSON "
+            "into multiple parts (e.g., charts first, dasha separately).",
+
+        # --- Footer ---
+        "help.footer":
+            "Tip: Place screenshots as assets/guide_step*.png to display them in this guide.",
 
         # Engine
         "engine": "Engine", "model": "Model", "ref": "Reference",
@@ -126,9 +354,9 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "male": "Male", "female": "Female",
         "birth": "Birth Date", "birth_help": "Enter date in YYYY/MM/DD format, time in 24-hour format",
         "Hr": "Hour (24H)", "Min": "Minute", "Sec": "Second",
-        "geo": "Birth Place", "geo_gmap": ":material/content_copy: Get coordinates from ",
+        "geo": "Birth Place", "geo_gmap": "Get coordinates from ",
         "gmap": "Google Maps",
-        "geo_paste": ":material/content_paste: Paste :material/location_on: Google Maps Coordinates",
+        "geo_paste": "Paste Google Maps Coordinates",
         "geo_help": "Copy the coordinates shown by right-clicking a location (e.g. 35.6812, 139.7671)  \n"
                     "or a Google Maps share link (maps.app.goo.gl/XXXX), and paste directly.",
         "geo_ph": "e.g. 35.6812, 139.7671", "geo_clear": "Clear pasted location",
@@ -136,7 +364,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "geo_notice_low_conf": "Note: This location was inferred from a share link. Please review and adjust if needed.",
         "geo_error": "Invalid coordinate format. Please enter numbers like 35.123, 139.456.",
         "lat": "Latitude (North +)", "lon": "Longitude (East +)",
-        "tz": ":material/globe: UTC Offset", "tz_auto": "(Auto-detected)",
+        "tz": "UTC Offset",
         "tz_help": "Time zone and Daylight Saving Time (DST) are automatically  \n"
                    "detected based on the birth date and coordinates.  \n"
                    "You can manually adjust them if necessary.",
@@ -191,6 +419,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         # Varga
         "d1": "D1 Rashi (Basic) * Required",
         "d9": "D9 Navamsa (Essence)",
+        "d2": "D2 Hora (Wealth / Resources)",
         "d3": "D3 Drekkana (Siblings)",
         "d4": "D4 Chaturthamsa (Home/Property)",
         "d7": "D7 Saptamsa (Children)",
@@ -199,11 +428,15 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "d16": "D16 Shodasamsa (Vehicles/Comfort)",
         "d20": "D20 Vimsamsa (Spiritual)",
         "d24": "D24 Siddhamsa (Education)",
+        "d27": "D27 Nakshatramsa (Strength / Resilience)",
         "d30": "D30 Trimshamsa (Adversity)",
+        "d40": "D40 Khavedamsa (Lineage Merit)",
+        "d45": "D45 Akshavedamsa (Quality / Nature)",
         "d60": "D60 Shashtyamsa (Karmic)",
         "varga_op": "Divisional Chart Output Options (click to expand)",
         "varga_d9_deg": "Show degrees in D9",
-        "varga_d3d60_dig": "Include dignity (only exaltation/debilitation) for non-D1/D9 charts",
+        "varga_d3d60_dig": "Include dignity in charts other than D1/D9",
+        "varga_d3d60_deg": "Show degrees in charts other than D1/D9 (debug)",
 
         # Dasha
         "vimshottari": "Vimshottari Dasha",
@@ -212,6 +445,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         # Buttons
         "btn_generate": "Generate JSON for AI (Preview)",
         "preview": "Preview (JSON content)",
+        "goto_download": "Jump to Download",
         "download": "Download minified JSON ({file_name})",
     },
 }
@@ -251,7 +485,7 @@ def validate_lang_dict(strict: bool = False) -> None:
             pass
 
 
-def t(key: str) -> str:
+def t(key: I18nKey | str) -> str:
     """
     セッションの lang を見て文字列を返す。
     - lang が不正なら EN

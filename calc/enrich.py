@@ -50,33 +50,53 @@ class Chart(TypedDict, total=False):
 def dignity_of(planet: str, sign: str, din: Optional[float] = None) -> str:
     """
     品位（dignity）を一意に返す（優先順位）：
-      1) exalted
+      1) moolatrikona（din 必須）
       2) debilitated
-      3) moolatrikona（din 必須）
-      4) owned
-      5) friendly / enemy / neutral
+      3) (exalted vs owned の衝突調停)
+      4) exalted
+      5) owned
+      6) friendly / enemy / neutral
+
+    NOTE:
+      Me@Vi は「高揚サイン」と「自室サイン」が同一で衝突する。
+      Me@Vi 0-15 exalted, 15-20 MT, 20-30 owned.
     """
 
-    # 1) exalted
-    if EXALTATION_SIGN.get(planet) == sign:
-        return "exalted"
-
-    # 2) debilitated
-    if DEBILITATION_SIGN.get(planet) == sign:
-        return "debilitated"
-
-    # 3) moolatrikona
+    # 1) moolatrikona（MTは度数レンジで決まるため最優先）
     rng = MOOLATRIKONA_RANGE.get(planet)
     if rng and din is not None:
         mt_sign, lo, hi = rng
-        if sign == mt_sign and (lo <= float(din) <= hi):
+        deg = float(din)
+        if sign == mt_sign and (lo <= deg <= hi):
             return "moolatrikona"
 
-    # 4) owned
-    if SIGN_LORD.get(sign) == planet:
+    # 2) debilitated（高揚と同時成立しないが、明示的に先に置いても安全）
+    if DEBILITATION_SIGN.get(planet) == sign:
+        return "debilitated"
+
+    # 3) exalted と owned が同一サインで衝突する場合の調停（度数で分岐）
+    is_exalt_sign = (EXALTATION_SIGN.get(planet) == sign)
+    is_own_sign = (SIGN_LORD.get(sign) == planet)
+    if is_exalt_sign and is_own_sign:
+        if din is None:
+            # 度数が無い場合は owned 優先（安全側）
+            return "owned"
+        deg = float(din)
+        # MT は既に上で返っている前提（15-20°）
+        # ここでは 20°超は owned、それ以外は exalted とする
+        if deg > 20.0:
+            return "owned"
+        return "exalted"
+
+    # 4) exalted
+    if is_exalt_sign:
+        return "exalted"
+
+    # 5) owned
+    if is_own_sign:
         return "owned"
 
-    # 5) friendly / enemy / neutral
+    # 6) friendly / enemy / neutral
     lord = SIGN_LORD.get(sign)
     if not lord:
         return "neutral"
@@ -438,9 +458,23 @@ def enrich_d1(d1: Chart, planets_raw: Dict[str, Dict], d9: Optional[Chart] = Non
 def apply_varga_flags(
     varga: Chart,
     d1: Chart,
-    kind: Literal["D9", "D3", "D4", "D7", "D10", "D12", "D16", "D20", "D24", "D30", "D60"]
+    kind: Literal[
+        "D9", "D2", "D3", "D4", "D7", "D10", "D12", "D16", "D20",
+        "D24", "D27", "D30", "D40", "D45", "D60",
+    ]
 ) -> Chart:
+    """
+    D9 / D3-D60 に dignity フラグを付与する。
+    D2（Hora）は dignity 概念を持たないため即 return。
+    """
 
+    # ----------------------------------
+    # D2 Hora は dignity を扱わない
+    # ----------------------------------
+    if kind == "D2":
+        return varga
+
+    # D1 planets（retrograde 参照用）
     d1pl: Dict[str, PlanetEntry] = {}
     pl = d1.get("planets")
     if isinstance(pl, dict):
@@ -473,18 +507,11 @@ def apply_varga_flags(
 
         d = dignity_of(p, s, din)
 
-        if kind == "D9":
-            # D9 は 4 種類のみ出力
-            if d in {"exalted", "debilitated", "moolatrikona", "owned"}:
-                rec["dignity"] = d
-            else:
-                rec.pop("dignity", None)
+        # D3〜D60 は D9 と同じ 4 種類のみ許可
+        if d in {"exalted", "debilitated", "moolatrikona", "owned"}:
+            rec["dignity"] = d
         else:
-            # 他の分割図は exalted / debilitated のみ
-            if d in {"exalted", "debilitated"}:
-                rec["dignity"] = d
-            else:
-                rec.pop("dignity", None)
+            rec.pop("dignity", None)
 
     return varga
 

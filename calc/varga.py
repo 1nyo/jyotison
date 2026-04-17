@@ -1,6 +1,86 @@
 # calc/varga.py
 from .base import SIGNS, sign_index_of, deg_in_sign
 
+def amsa_degree(din: float, divisions: int) -> float:
+    """
+    分割図内のサイン内度数（0..30）を返す共通関数
+    """
+    f = 30.0 / divisions
+    deg = (din % f) * divisions
+    deg = round(deg, 2)
+    if deg >= 30.0:
+        return 29.99
+    if deg < 0.0:
+        return 0.00
+    return deg
+
+# -----------------------------------------------
+# D2 Hora (Traditional Parāśara)
+# -----------------------------------------------
+
+def d2_sign_lord_and_degree(long_deg: float) -> tuple[str, str, float]:
+    """
+    D2 (Hora) - Traditional Parāśara (BPHS)
+
+    ルール:
+      - Sun's Hora  = Leo (Le)  [lord: Su]
+      - Moon's Hora = Cancer (Cn) [lord: Mo]
+
+      サイン(30°)を 15° + 15° に分ける。
+        * 奇数サイン (Ar, Ge, Le, Li, Sg, Aq):
+            0-15°  → Sun Hora (Le)
+            15-30° → Moon Hora (Cn)
+        * 偶数サイン (Ta, Cn, Vi, Sc, Cp, Pi):
+            0-15°  → Moon Hora (Cn)
+            15-30° → Sun Hora (Le)
+
+    度数:
+      d_long = (deg_in_sign * 2) % 30 として返す（0..30）。
+      ※ D2は2サインしかないため、度数は必須ではないが、LLM用途で保持しておくと便利。
+    """
+    r = sign_index_of(long_deg)     # 0..11
+    din = deg_in_sign(long_deg)     # 0..30
+
+    half = int(din // 15.0)         # 0 (0-15), 1 (15-30)
+    is_odd_sign = r in (0, 2, 4, 6, 8, 10)  # Ar, Ge, Le, Li, Sg, Aq
+
+    # PyJHora condition:
+    # if (odd and half==0) or (even and half==1): Sun Hora else Moon Hora
+    sun_hora = (is_odd_sign and half == 0) or ((not is_odd_sign) and half == 1)
+
+    if sun_hora:
+        sign = "Le"
+        lord = "Su"
+    else:
+        sign = "Cn"
+        lord = "Mo"
+
+    d_long = round((din * 2.0) % 30.0, 2)
+    if d_long >= 30.0:
+        d_long = 29.99
+    if d_long < 0.0:
+        d_long = 0.00
+
+    return sign, lord, d_long
+
+
+def build_d2_hora(asc_long: float, planets_long: dict) -> dict:
+    """
+    D2は house を出さない（Cancer/Leo の2択で Whole Sign house が解釈上ノイズになりやすい）。
+    その代わり、sign と lord（Su/Mo）を主情報として返す。
+    """
+    asc_sign, asc_lord, asc_deg = d2_sign_lord_and_degree(asc_long)
+
+    out_pl = {}
+    for p, lon in planets_long.items():
+        s, l, d = d2_sign_lord_and_degree(lon)
+        out_pl[p] = {"sign": s, "degree": d, "lord": l}
+
+    return {
+        "Asc": {"sign": asc_sign, "degree": asc_deg, "lord": asc_lord},
+        "planets": out_pl
+    }
+
 # -----------------------------------------------
 # D9 Navamsa
 # -----------------------------------------------
@@ -43,11 +123,9 @@ def d9_sign_and_degree(long_deg: float) -> tuple[str, float]:
 # D3 Drekkana
 # ======================================================
 
-def drekkana_sign(long_deg: float) -> str:
+def d3_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    Drekkana (D3) — PVR/Traditional Parasara Method に準拠。
-    PyJHora の _drekkana_chart_parasara と一致させる。
-
+    Drekkana (D3) — Traditional Parasara Method に準拠。
       - 各サイン(30°)を 10° * 3 に分割
       - サイン内度数 0〜10°  → 元のサイン
       - サイン内度数 10〜20° → 5番目のサイン
@@ -56,20 +134,23 @@ def drekkana_sign(long_deg: float) -> str:
     r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)     # 0..30
 
-    f1 = 30.0 / 3.0                 # 10.0
-    l  = int(din // f1)             # 0,1,2
+    dvf = 3
+    part = int(din // (30.0 / dvf)) # 0,1,2
 
     # 0 → 同じサイン, 1 → 5番目, 2 → 9番目
-    si = (r + l * 4) % 12           # 4 = 12 / 3
-    return SIGNS[si]
+    si = (r + part * 4) % 12        # 4 = 12 / 3
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D4 Chaturthamsa
 # ======================================================
 
-def chaturthamsa_sign(long_deg: float) -> str:
+def d4_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    D4 (Chaturthamsa) — Traditional Parasara (PyJHora _chaturthamsa_parasara と整合)
+    D4 (Chaturthamsa) — Traditional Parasara
     30° を 7.5° * 4 に分割し、
       part=0: +0
       part=1: +3 signs
@@ -80,53 +161,58 @@ def chaturthamsa_sign(long_deg: float) -> str:
     r   = sign_index_of(long_deg)     # 0..11
     din = deg_in_sign(long_deg)       # 0..30
 
-    f1 = 30.0 / 4.0                   # 7.5°
-    part = int(din // f1)             # 0..3
+    dvf = 4
+    part = int(din // (30.0 / dvf))   # 0..3
 
     # f2 = 3 → move 3 signs per part
     si = (r + part * 3) % 12
-    return SIGNS[si]
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D7 Saptamsa
 # ======================================================
 
-def saptamsa_sign(long_deg: float) -> str:
+def d7_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    Saptamsa (D7) — PyJHora の Traditional Parasara (chart_method=1) と整合。
-    30° を 7 等分し、
-      - 奇数サイン: そのサイン自身を起点に区画番号ぶん進める
-      - 偶数サイン: そのサインから7番目のサインを起点に区画番号ぶん進める
+    Saptamsa (D7)
+    サイン + サイン内度数（0..30）を返す
     """
-    r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
+    r   = sign_index_of(long_deg)   # 0..11
     din = deg_in_sign(long_deg)     # 0..30
 
-    f1 = 30.0 / 7.0                 # 1 区画 ≒ 4.2857°
-    l = int(din // f1)              # 区画 index 0..6
+    dvf = 7
+    part = int(din // (30.0 / dvf)) # amsa index 0..6
 
     # 奇数サイン: Ar, Ge, Le, Li, Sg, Aq
-    if r not in (1, 3, 5, 7, 9, 11):  # even_signs が Ta,Cn,Vi,Sc,Cp,Pi なのでその逆
+    if r not in (1, 3, 5, 7, 9, 11):
         base = r
     else:
-        base = (r + 6) % 12    # 偶数サイン = 7th from Sign（+6）
- 
-    si = (base + l) % 12
-    return SIGNS[si]
+        base = (r + 6) % 12         # 偶数サイン
+
+    sign = SIGNS[(base + part) % 12]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D10 Dasamsa
 # ======================================================
 
-def dasamsa_sign(long_deg: float) -> str:
+def d10_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    Daśāṁśa (D10) — Parāśara式（JH \"D-10 (Trd)\" と整合）。
+    Daśāṁśa (D10) — Parāśara式
     30°を3°*10に分割し、
       - 奇数サイン (Ar, Ge, Le, Li, Sg, Aq) では、そのサイン自身を起点に順行
       - 偶数サイン (Ta, Cn, Vi, Sc, Cp, Pi) では、そのサインから数えて9番目のサインを起点に順行
     """
     r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)     # 0..30
-    part = int(din // 3.0)          # 0..9
+
+    dvf = 10
+    part = int(din // (30.0 / dvf)) # 0..9
 
     # 奇数サイン: Ar, Ge, Le, Li, Sg, Aq
     if r in (0, 2, 4, 6, 8, 10):
@@ -135,16 +221,18 @@ def dasamsa_sign(long_deg: float) -> str:
         # 偶数サイン: Ta, Cn, Vi, Sc, Cp, Pi → 9番目のサインを起点
         base = (r + 8) % 12
 
-    si = (base + part) % 12
-    return SIGNS[si]
+    sign = SIGNS[(base + part) % 12]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D12 Dwadasamsa
 # ======================================================
 
-def dwadasamsa_sign(long_deg: float) -> str:
+def d12_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    D12 (Dwadasamsa) — Traditional Parāśara / PyJHora dwadasamsa_chart(chart_method=1) と整合。
+    D12 (Dwadasamsa) — Traditional Parāśaraと整合。
     30° を 2.5° * 12 に分割し、
       l = floor(din / 2.5) (0..11)
       D12 sign = 元の sign から l つ進めたサイン
@@ -152,17 +240,21 @@ def dwadasamsa_sign(long_deg: float) -> str:
     r   = sign_index_of(long_deg)  # 0..11
     din = deg_in_sign(long_deg)    # 0..30
 
-    f1 = 30.0 / 12.0               # 2.5°
-    l  = int(din // f1)            # 0..11
+    dvf = 12
+    l  = int(din // (30.0 / dvf))            # 0..11
 
     si = (r + l) % 12
-    return SIGNS[si]
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D16 Shodasamsa
 # ======================================================
 
-def shodasamsa_sign(long_deg: float) -> str:
+def d16_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
     D16 (Shodasamsa / Kalamsa) — Traditional Parāśara / PyJHora shodasamsa_chart(chart_method=1) と整合。
     30° を 1.875° * 16 に分割し、
@@ -176,8 +268,8 @@ def shodasamsa_sign(long_deg: float) -> str:
     r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)     # 0..30
 
-    f1 = 30.0 / 16.0                # 1.875°
-    l  = int(din // f1)             # 0..15
+    dvf = 16
+    l  = int(din // (30.0 / dvf))             # 0..15
 
     # ベース: Aries 始まり 12サインを l%12 でローテーション
     r0 = l % 12
@@ -193,13 +285,16 @@ def shodasamsa_sign(long_deg: float) -> str:
     else:                           # Movable
         si = r0
 
-    return SIGNS[si]
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D20 Vimsamsa
 # =====================================================
 
-def vimsamsa_sign(long_deg: float) -> str:
+def d20_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
     Vimśāṁśa (D20) — Parāśara系（JH “D-20 (Trd)” に一致）
     30°を1.5°*20に分け、モダリティ（動/不動/両義）に応じた起点から順行加算。
@@ -211,7 +306,8 @@ def vimsamsa_sign(long_deg: float) -> str:
     """
     r = sign_index_of(long_deg)         # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)         # 0..30
-    part = int(din // 1.5)              # 0..19
+    dvf = 20
+    part = int(din // (30.0 / dvf))              # 0..19
 
     if r in (0, 3, 6, 9):       # Movable: Ar, Cn, Li, Cp
         base = 0                # Aries
@@ -221,13 +317,17 @@ def vimsamsa_sign(long_deg: float) -> str:
         base = 4                # Leo
 
     si = (base + part) % 12
-    return SIGNS[si]
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D24 Siddhamsa
 # =====================================================
 
-def siddhamsa_sign(long_deg: float) -> str:
+def d24_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
     Siddhamsa / Chaturvimshamsa (D24) — Parāśara式。
     各サイン(30°)を1.25°*24に分割。
@@ -243,8 +343,8 @@ def siddhamsa_sign(long_deg: float) -> str:
     """
     r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)     # 0..30
-    f1 = 30.0 / 24.0                # 1.25°
-    part = int(din // f1)           # 0..23
+    dvf = 24
+    part = int(din // (30.0 / dvf))           # 0..23
 
     # 奇数サイン: Ar, Ge, Le, Li, Sg, Aq -> index: 0,2,4,6,8,10
     if r in (0, 2, 4, 6, 8, 10):
@@ -253,67 +353,188 @@ def siddhamsa_sign(long_deg: float) -> str:
         base = SIGNS.index("Cn")  # Cancer
 
     si = (base + part) % 12
-    return SIGNS[si]
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
+
+# ======================================================
+# D27 Nakshatramsa
+# ======================================================
+
+def d27_sign_and_degree(long_deg: float) -> tuple[str, float]:
+    """
+    Nakshatramsa (D27) — Traditional Parāśara
+
+    実装ロジック:
+      dvf = 27
+      f1 = 30 / 27 = 1.111...°
+
+      l = floor(deg_in_sign / f1)  # 0..26
+
+      起点:
+        - Fire  (Ar, Le, Sg): l % 12
+        - Earth (Ta, Vi, Cp): (l + 3) % 12   [Cancer 起点]
+        - Air   (Ge, Li, Aq): (l + 6) % 12
+        - Water (Cn, Sc, Pi): (l + 9) % 12
+    """
+    r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
+    din = deg_in_sign(long_deg)     # 0..30
+
+    dvf = 27
+    l   = int(din // (30.0 / dvf))             # 0..26
+
+    # Fire signs: Ar(0), Le(4), Sg(8)
+    if r in (0, 4, 8):
+        si = l % 12
+
+    # Earth signs: Ta(1), Vi(5), Cp(9)
+    elif r in (1, 5, 9):
+        si = (l + 3) % 12
+
+    # Air signs: Ge(2), Li(6), Aq(10)
+    elif r in (2, 6, 10):
+        si = (l + 6) % 12
+
+    # Water signs: Cn(3), Sc(7), Pi(11)
+    else:
+        si = (l + 9) % 12
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D30 Trimshamsa
 # ==================================================
 
-def trimsamsa_sign(long_deg: float) -> str:
+def d30_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    Trimshamsa (D30) — Parāśara式。
-    30°を 5,5,8,7,5 度の 5 区画に分割し、奇数/偶数サインで
-    惑星順序を入れ替え、その惑星の男性/女性サインを D30 サインとする。
+    D30 Trimshamsa — Traditional Parāśara
+    - サイン：不等分割（5,5,8,7,5）で決定
+    - degree： (D1 サイン内度数 x 30) % 30
     """
 
+    r   = sign_index_of(long_deg)   # 0..11
+    din = deg_in_sign(long_deg)     # 0..30
+
+    deg = round((din * 30.0) % 30.0, 2)
+    if deg >= 30.0:
+        deg = 29.99
+    if deg < 0.0:
+        deg = 0.00
+
+    odd = [
+        (0.0, 5.0, 0),   # Ar (Mars)
+        (5.0, 10.0, 10), # Aq (Saturn)
+        (10.0, 18.0, 8), # Sg (Jupiter)
+        (18.0, 25.0, 2), # Ge (Mercury)
+        (25.0, 30.0, 6), # Li (Venus)
+    ]
+
+    even = [
+        (0.0, 5.0, 1),   # Ta (Venus)
+        (5.0, 12.0, 5),  # Vi (Mercury)
+        (12.0, 20.0, 11),# Pi (Jupiter)
+        (20.0, 25.0, 9), # Cp (Saturn)
+        (25.0, 30.0, 7), # Sc (Mars)
+    ]
+
+    if r in (0, 2, 4, 6, 8, 10):  # odd signs
+        table = odd
+    else:
+        table = even
+
+    for l_min, l_max, si in table:
+        if l_min <= din <= l_max:
+            return SIGNS[si % 12], deg
+
+    # 理論上ここには来ない
+    return "Ar", deg
+
+# ======================================================
+# D40 Khavedamsa
+# ======================================================
+
+def d40_sign_and_degree(long_deg: float) -> tuple[str, float]:
+    """
+    Khavedamsa (D40) — Traditional Parāśara
+
+    ロジック:
+      dvf = 40
+      f1  = 30 / 40 = 0.75°
+      l   = floor(deg_in_sign / f1)  # 0..39
+
+      奇数サイン: part from Aries -> r = l % 12
+      偶数サイン: part from Libra -> r = (l + 6) % 12
+    """
     r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)     # 0..30
 
-    # 奇数サイン（男性サイン）: Ar, Ge, Le, Li, Sg, Aq
-    if r in (0, 2, 4, 6, 8, 10):
-        # 度数 -> 惑星 (Mars, Saturn, Jupiter, Mercury, Venus)
-        if din < 5.0:
-            # Mars → male sign: Ar
-            return "Ar"
-        elif din < 10.0:
-            # Saturn → male sign: Aq
-            return "Aq"
-        elif din < 18.0:
-            # Jupiter → male sign: Sg
-            return "Sg"
-        elif din < 25.0:
-            # Mercury → male sign: Ge
-            return "Ge"
-        else:
-            # Venus → male sign: Li
-            return "Li"
+    dvf = 40
+    l   = int(din // (30.0 / dvf))            # 0..39
 
-    # 偶数サイン（女性サイン）: Ta, Cn, Vi, Sc, Cp, Pi
+    # even_signs: Ta(1), Cn(3), Vi(5), Sc(7), Cp(9), Pi(11)
+    if r in (1, 3, 5, 7, 9, 11):
+        si = (l + 6) % 12           # part from Libra
     else:
-        # 惑星順序を逆に (Venus, Mercury, Jupiter, Saturn, Mars)
-        if din < 5.0:
-            # Venus → female sign: Ta
-            return "Ta"
-        elif din < 10.0:
-            # Mercury → female sign: Vi
-            return "Vi"
-        elif din < 18.0:
-            # Jupiter → female sign: Pi
-            return "Pi"
-        elif din < 25.0:
-            # Saturn → female sign: Cp
-            return "Cp"
-        else:
-            # Mars → female sign: Sc
-            return "Sc"
+        si = l % 12                 # part from Aries
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
+
+# ======================================================
+# D45 Akshavedamsa
+# ======================================================
+
+def d45_sign_and_degree(long_deg: float) -> tuple[str, float]:
+    """
+    Akshavedamsa (D45) — Traditional Parāśara
+
+    ロジック:
+      dvf = 45
+      f1  = 30 / 45 = 0.666666...°
+      l   = floor(deg_in_sign / f1)  # 0..44
+
+      起点:
+        - Movable signs (Ar, Cn, Li, Cp): r = l % 12
+        - Fixed signs   (Ta, Le, Sc, Aq): r = (l + 4) % 12
+        - Dual signs    (Ge, Vi, Sg, Pi): r = (l + 8) % 12
+    """
+    r   = sign_index_of(long_deg)   # 0..11 (Ar..Pi)
+    din = deg_in_sign(long_deg)     # 0..30
+
+    dvf = 45
+    l   = int(din // (30.0 / dvf))             # 0..44
+
+    # Fixed signs: Ta(1), Le(4), Sc(7), Aq(10)
+    if r in (1, 4, 7, 10):
+        si = (l + 4) % 12
+
+    # Dual signs: Ge(2), Vi(5), Sg(8), Pi(11)
+    elif r in (2, 5, 8, 11):
+        si = (l + 8) % 12
+
+    # Movable signs: Ar(0), Cn(3), Li(6), Cp(9)
+    else:
+        si = l % 12
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 # ======================================================
 # D60 Shastyamsa
 # ======================================================
 
-def shastyamsa_sign(long_deg: float) -> str:
+def d60_sign_and_degree(long_deg: float) -> tuple[str, float]:
     """
-    Ṣaṣṭiāṁśa (D60) — JH “D-60 (Trd)” と一致する実装。
+    Ṣaṣṭiāṁśa (D60)
     30°を0.5°*60に分け、【各サイン自身】を起点として順行で加算する。
       si = (rashi_index + floor(deg_in_sign/0.5)) % 12
 
@@ -323,10 +544,14 @@ def shastyamsa_sign(long_deg: float) -> str:
     """
     r = sign_index_of(long_deg)       # 0..11 (Ar..Pi)
     din = deg_in_sign(long_deg)       # 0..30
-    f1 = 30.0 / 60.0                  # 0.5°
-    part = int(din // f1)             # 0..59
+    dvf = 60
+    part = int(din // (30.0 / dvf))             # 0..59
     si = (r + part) % 12
-    return SIGNS[si]
+
+    sign = SIGNS[si]
+    deg  = amsa_degree(din, dvf)
+
+    return sign, deg
 
 
 # ======================================================
@@ -334,31 +559,62 @@ def shastyamsa_sign(long_deg: float) -> str:
 # ======================================================
 
 VARGA_SIGN_FUNC = {
-    "D3":  drekkana_sign,
-    "D4":  chaturthamsa_sign,
-    "D7":  saptamsa_sign,
-    "D10": dasamsa_sign,
-    "D12": dwadasamsa_sign,
-    "D16": shodasamsa_sign,
-    "D20": vimsamsa_sign,
-    "D24": siddhamsa_sign,
-    "D30": trimsamsa_sign,
-    "D60": shastyamsa_sign,
+    "D3":  d3_sign_and_degree,
+    "D4":  d4_sign_and_degree,
+    "D7":  d7_sign_and_degree,
+    "D10": d10_sign_and_degree,
+    "D12": d12_sign_and_degree,
+    "D16": d16_sign_and_degree,
+    "D20": d20_sign_and_degree,
+    "D24": d24_sign_and_degree,
+    "D27": d27_sign_and_degree,
+    "D30": d30_sign_and_degree,
+    "D40": d40_sign_and_degree,
+    "D45": d45_sign_and_degree,
+    "D60": d60_sign_and_degree,
 }
 
 from .base import house_from_signs
 
 def build_varga(name: str, asc_long: float, planets_long: dict) -> dict:
-    fn = VARGA_SIGN_FUNC[name]
+    """
+    Varga chart builder (calculation layer).
 
-    asc_sign = fn(asc_long)
+    Design:
+    - All varga charts carry degree information internally.
+    - Output masking (e.g. removing degree) is handled later
+      by output/filters.py.
+    """
+
+    # D2 Hora は特殊
+    if name == "D2":
+        return build_d2_hora(asc_long, planets_long)
+
+    fn = VARGA_SIGN_FUNC.get(name)
+    if fn is None:
+        raise ValueError(f"Unsupported varga: {name}")
+
+    # Ascendant
+    asc_sign, asc_deg = fn(asc_long)
     asc_si = SIGNS.index(asc_sign)
 
+    # Planets
     out_pl = {}
     for p, lon in planets_long.items():
-        psign = fn(lon)
+        psign, pdeg = fn(lon)
         psi = SIGNS.index(psign)
         house = house_from_signs(asc_si, psi)
-        out_pl[p] = {"sign": psign, "house": house}
 
-    return {"Asc": {"sign": asc_sign}, "planets": out_pl}
+        out_pl[p] = {
+            "sign": psign,
+            "degree": pdeg,
+            "house": house
+        }
+
+    return {
+        "Asc": {
+            "sign": asc_sign,
+            "degree": asc_deg
+        },
+        "planets": out_pl
+    }

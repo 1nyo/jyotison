@@ -51,6 +51,27 @@ This project follows Semantic Versioning.
 
 ---
 
+## [1.1.3] - 2026-04-01
+
+### Added
+- New Brand Logo: Introduced the official JyotiSON logo to the header for a more professional and consistent look.
+
+### Changed
+- Streamlit Upgrade: Updated core dependency to Streamlit v1.55.0 to ensure better performance and compatibility with the latest features.
+- Minor UI adjustments and internal code optimization.
+
+---
+
+## [1.1.4] - 2026-04-17
+
+### Fixed
+- Fixed Moon and Mercury's dignity assessment. Now it correctly evaluates exaltation, moolatrikona, and own sign based on the planet's degree within its sign, instead of defaulting to an exalted status for all cases.
+
+### Added
+- Added four divisional charts (D2, D27, D40, D45), bringing the total supported divisional (Varga) charts to 16. Enhanced dignity calculations for each chart now include Moolatrikona and own‑sign determinations in addition to the existing exaltation and debilitation assessments.
+
+---
+
 ## [1.2.0] - Planned
 ### Added
 

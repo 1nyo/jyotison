@@ -13,7 +13,14 @@ PLANETS: List[str] = ["Su","Mo","Ma","Me","Ju","Ve","Sa","Ra","Ke"]
 # 占星術データ：Exaltation / Debilitation / MT / ロード / 友敵
 # ------------------------------------------------------------
 
+# サイン → 支配星（D1 Lords）
+SIGN_LORD: Dict[str, str] = {
+    "Ar": "Ma", "Ta": "Ve", "Ge": "Me", "Cn": "Mo", "Le": "Su", "Vi": "Me",
+    "Li": "Ve", "Sc": "Ma", "Sg": "Ju", "Cp": "Sa", "Aq": "Sa", "Pi": "Ju",
+}
+
 # Exaltation（高揚サイン）
+# The deepest exaltation degrees: Su 10, Mo 3, Ma 28, Me 15, Ju 5, Ve 27, Sa 20
 EXALTATION_SIGN: Dict[str, str] = {
     "Su": "Ar", "Mo": "Ta", "Ma": "Cp", "Me": "Vi",
     "Ju": "Cn", "Ve": "Pi", "Sa": "Li", "Ra": "Ta", "Ke": "Sc"
@@ -22,12 +29,6 @@ EXALTATION_SIGN: Dict[str, str] = {
 # Debilitation（減衰サイン）＝高揚の対向
 DEBILITATION_SIGN: Dict[str, str] = {
     p: SIGNS[(SIGNS.index(s) + 6) % 12] for p, s in EXALTATION_SIGN.items()
-}
-
-# サイン → 支配星（D1 Lords）
-SIGN_LORD: Dict[str, str] = {
-    "Ar": "Ma", "Ta": "Ve", "Ge": "Me", "Cn": "Mo", "Le": "Su", "Vi": "Me",
-    "Li": "Ve", "Sc": "Ma", "Sg": "Ju", "Cp": "Sa", "Aq": "Sa", "Pi": "Ju",
 }
 
 # Moolatrikona レンジ（sign, start_deg, end_deg）
@@ -51,8 +52,8 @@ FRIENDS: Dict[str, List[str]] = {
     "Ju": ["Su", "Mo", "Ma"],
     "Ve": ["Me", "Sa"],
     "Sa": ["Me", "Ve"],
-    "Ra": [],
-    "Ke": [],
+    "Ra": ["Ju", "Ve", "Sa"],
+    "Ke": ["Ma", "Ve", "Sa"],
 }
 
 # 自然敵対表
@@ -64,8 +65,8 @@ ENEMIES: Dict[str, List[str]] = {
     "Ju": ["Me", "Ve"],
     "Ve": ["Su", "Mo"],
     "Sa": ["Su", "Mo", "Ma"],
-    "Ra": [],
-    "Ke": [],
+    "Ra": ["Su", "Mo", "Ma"],
+    "Ke": ["Su", "Mo"],
 }
 
 # ------------------------------------------------------------

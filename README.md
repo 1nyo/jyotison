@@ -59,7 +59,7 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 - **Interpretation Aids**: Automatic detection of Dignity (Exalted, Debilitated, Moolatrikona, etc.), Aspects, and Combustion.
 - **Advanced Indicators**: Planetary speed (Stationary, Fast, etc.), Dig Bala, and Vargottama status.
 - **Jaimini System**: Chara Karaka (7/8 schemes), Karakamsha, AL (Arudha Lagna), and UL (Upapada Lagna).
-- **Comprehensive Vargas**: Support for 10+ divisional charts (D1, D3, D4, D7, D9, D10, D12, D16, D20, D24, D30, D60).
+- **Comprehensive Vargas**: Support for 16 divisional charts (D1, D2, D3, D4, D7, D9, D10, D12, D16, D20, D24, D27, D30, D40, D45, D60).
 - **Vimshottari Dasha**: Full life cycle (MD) and detailed current context (AD) with past/current/future tagging.
 
 ### ✅ 実装済み
@@ -70,7 +70,7 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 - **解釈の補助線**: 品位（高揚・減衰、ムーラトリコーナ等）、アスペクト、コンバストの自動判定
 - **高度な指標**: 惑星スピード（静止・高速等）、ディグ・バラ、ヴァルゴッタマ判定
 - **ジャイミニ占星術**: チャラ・カーラカ、カラカムシャ、AL、UL の算出
-- **豊富な分割図**: 主要な10種類以上の分割図に対応（D1, D3, D4, D7, D9, D10, D12, D16, D20, D24, D30, D60）
+- **豊富な分割図**: 主要な16種類の分割図に対応（D1, D2, D3, D4, D7, D9, D10, D12, D16, D20, D24, D27, D30, D40, D45, D60）
 - **ヴィムショッタリ・ダシャー**: 一生の大きな流れ（MD）と、現在と前後数年の詳細な流れ（AD）をタグ付きで出力
 
 ---
@@ -82,6 +82,7 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 ├─ streamlit_app.py
 ├─ ui/
 │  ├─ i18n.py             # 翻訳辞書（EN / JP）
+│  ├─ help_dialog.py      # Contents of help button
 │  ├─ geo_timezone.py     # geo_paste / lat-lon / tz auto-manual 状態遷移
 │  └─ presets.py          # Output preset (Basic / Standard / Advanced / Custom)
 ├─ input/
@@ -97,7 +98,7 @@ By delivering pre-calculated, semantically rich JSON (including lordship, aspect
 │  ├─ speed.py            # Speed / station / very fast 判定
 │  ├─ enrich.py           # lord, aspect, dignity, combust, dig bala 等
 │  ├─ jaimini.py          # Chara Karaka, Karakamsha, AL, UL
-│  ├─ varga.py            # 共通分割図ビルダー（D3–D60）
+│  ├─ varga.py            # 共通分割図ビルダー（D2–D60）
 │  ├─ d1.py               # D1 Rashi
 │  ├─ d9.py               # D9 Navamsa
 │  ├─ dasha.py            # Vimshottari Dasha

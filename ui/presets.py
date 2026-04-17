@@ -40,12 +40,16 @@ PRESET_KEYS = [
     "opt_vargottama", "opt_gandanta",
 
     # Varga includes
-    "include_d1", "include_d3", "include_d4", "include_d7", "include_d9",
-    "include_d10", "include_d12", "include_d16", "include_d20",
-    "include_d24", "include_d30", "include_d60",
+    "include_d1", "include_d2", "include_d3", "include_d4",
+    "include_d7", "include_d9", "include_d10", "include_d12",
+    "include_d16", "include_d20", "include_d24", "include_d27",
+    "include_d30", "include_d40", "include_d45", "include_d60",
 
     # Varga output options
-    "varga_d9_degree", "varga_dignity",
+    "varga_d9_degree", "varga_dignity", "varga_degree",
+
+    # Dasha
+    "opt_vimshottari",
 ]
 
 # ----------------------------
@@ -68,6 +72,7 @@ PRESETS: Dict[str, Dict[str, bool]] = {
         # --- Varga ---
         "include_d1": True,
         "include_d9": True,
+        "include_d2": False,
         "include_d3": False,
         "include_d4": False,
         "include_d7": False,
@@ -76,12 +81,19 @@ PRESETS: Dict[str, Dict[str, bool]] = {
         "include_d16": False,
         "include_d20": False,
         "include_d24": False,
+        "include_d27": False,
         "include_d30": False,
+        "include_d40": False,
+        "include_d45": False,
         "include_d60": False,
 
         # --- Varga Output ---
         "varga_d9_degree": False,
         "varga_dignity": False,
+        "varga_degree": False,
+
+        # --- Dasha ---
+        "opt_vimshottari": True,
     },
 
     "Standard": {
@@ -100,25 +112,34 @@ PRESETS: Dict[str, Dict[str, bool]] = {
         # --- Varga ---
         "include_d1": True,
         "include_d9": True,
-        "include_d10": True,
-        "include_d20": True,
-        "include_d60": True,
+        "include_d2": False,
         "include_d3": False,
         "include_d4": False,
         "include_d7": False,
+        "include_d10": True,
         "include_d12": False,
         "include_d16": False,
+        "include_d20": True,
         "include_d24": False,
+        "include_d27": False,
         "include_d30": False,
+        "include_d40": False,
+        "include_d45": False,
+        "include_d60": True,
 
         # --- Varga Output ---
         "varga_d9_degree": True,
         "varga_dignity": True,
+        "varga_degree": False,
+
+        # --- Dasha ---
+        "opt_vimshottari": True,
     },
 
     "Advanced": {
         # everything ON
         **{k: True for k in PRESET_KEYS},
+        "varga_degree": False,
     },
 }
 

@@ -14,7 +14,7 @@ Design policy:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, TypedDict, Literal
+from typing import Any, Callable, TypedDict, Literal
 import streamlit as st
 
 
@@ -119,12 +119,13 @@ def on_latlon_manual_change() -> None:
 def handle_geo_paste(
     geo_paste: str,
     parse_func: Callable[[str], Any],
-) -> GeoMsgState:
+) -> None:  # 修正: 戻り値を使用しないため None に変更
     """
     Process geo_paste ONLY when it changed.
-    Update session_state lat/lon, geo_confidence, tz flags, and message state.
-
-    Returns current message state (rerun-safe).
+    Updates session_state lat/lon, geo_confidence, tz flags, and message state.
+    
+    Note: Does not return a value. 
+    UI rendering is handled separately via state changes.
     """
     ensure_geo_tz_state()
 
@@ -137,11 +138,11 @@ def handle_geo_paste(
         st.session_state[K_GEO_SUCCESS] = None
         st.session_state[K_GEO_MSG_STATE] = {"kind": "none"}
         st.session_state[K_GEO_CONF] = None
-        return st.session_state[K_GEO_MSG_STATE]
+        return  # 修正: 値を返さない
 
-    # If not changed -> keep existing state (important for reruns like tz manual change)
+    # If not changed -> keep existing state
     if not changed:
-        return st.session_state.get(K_GEO_MSG_STATE, {"kind": "none"})
+        return  # 修正: 値を返さない
 
     # Changed -> parse new text
     res = parse_func(geo_paste)
@@ -150,7 +151,7 @@ def handle_geo_paste(
         st.session_state[K_GEO_SUCCESS] = None
         st.session_state[K_GEO_CONF] = None
         st.session_state[K_GEO_MSG_STATE] = {"kind": "error"}
-        return st.session_state[K_GEO_MSG_STATE]
+        return  # 修正: 値を返さない
 
     # Success
     pasted_lat, pasted_lon = float(res.lat), float(res.lon)
@@ -163,6 +164,7 @@ def handle_geo_paste(
     # Switching coordinates should trigger timezone auto detection
     mark_tz_dirty()
 
+    # Update state
     st.session_state[K_GEO_SUCCESS] = {
         "lat": pasted_lat,
         "lon": pasted_lon,
@@ -176,7 +178,6 @@ def handle_geo_paste(
         "lon": pasted_lon,
         "confidence": confidence,
     }
-    return st.session_state[K_GEO_MSG_STATE]
 
 
 # ----------------------------

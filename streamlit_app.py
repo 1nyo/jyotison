@@ -9,6 +9,7 @@ import streamlit as st
 
 # ---- ui imports ----
 from ui.i18n import t, validate_lang_dict
+from ui.help_dialog import render_help_button
 from ui.geo_timezone import (
     ensure_geo_tz_state,
     mark_tz_dirty,
@@ -75,6 +76,7 @@ st.markdown(
     .jyotison-logo {
         width: 115px;
         pointer-events: none;
+        transform: translateX(-20px);  # 左に20pxずらす
     }
     </style>
     """,
@@ -106,18 +108,14 @@ if "lang_initialized_from_query" not in st.session_state:
 
 # 初期値の保証（まだ何も入っていない場合のデフォルト）
 st.session_state.setdefault("gender", None)
-st.session_state.setdefault("node_type", "True")
+st.session_state.setdefault("node_type", "Mean")
 
-# ck_mode は内部表現は常に "8" or "7"
-st.session_state.setdefault("ck_mode", "8")
+# ck_mode: 内部表現は常に文字列 "7" または "8"
+st.session_state.setdefault("ck_mode", "7")
 
-# 何が来ても最終的には "8"/"7" に丸める
-ck = st.session_state["ck_mode"]
-if ck in (8, 7):
-    ck = "7" if ck == 7 else "8"
-elif ck not in ("8", "7"):
-    ck = "8"
-st.session_state["ck_mode"] = ck
+# 数値混入時の救済を含め、常に "7" または "8" に正規化する
+_raw = st.session_state["ck_mode"]
+st.session_state["ck_mode"] = str(_raw) if str(_raw) in ("7", "8") else "7"
 
 # --- cache wrapper ---
 @st.cache_data(show_spinner=False)
@@ -136,7 +134,7 @@ st.markdown(
     .header-container {text-align: center; padding: 0 0 1.5rem 0; font-family: 'Inter', 'sans-serif';}
     .logo-text {font-size: 4rem; font-weight: 750; letter-spacing: -3px; margin-bottom: 0; line-height: 1;}
     .yoti {opacity: 0.8; font-weight: 500; letter-spacing: -4px; padding: 0 2px;}
-    .version-text { font-size: 1rem; vertical-align: super; opacity: 0.5; margin-left: 2px; position: relative; top: -0.8rem; font-weight: 400; letter-spacing: 0; }
+    .version-text {font-size: 1rem; vertical-align: super; opacity: 0.5; margin-left: 2px; position: relative; top: -0.8rem; font-weight: 400; letter-spacing: 0; }
     .subtitle-text {font-size: 1rem; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
         opacity: 0.85; margin-top: 0.9rem;}
     /* st.caption の下の余白を削る */
@@ -150,7 +148,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-h1, h2 = st.columns([4.5, 1])
+# Logo & 🌐Language
+h1, h2 = st.columns([6, 1])
 with h1:
     st.markdown(logo_html, unsafe_allow_html=True)
 with h2:
@@ -167,7 +166,7 @@ qp = st.query_params  # dict-like
 if "lang" in qp and qp["lang"] != st.session_state.lang:
     del qp["lang"]
 
-# ヘッダー & 言語トグル
+# "JyotiSON" & Help button
 col1, col2 = st.columns([6, 1])
 with col1:
     st.markdown(
@@ -181,32 +180,7 @@ with col1:
         unsafe_allow_html=True
     )
 with col2:
-    # ダイアログ形式の例
-    # if st.button(":material/info: How to use", help="使い方の説明を表示"):
-        
-    #     @st.dialog("JyotiSON User Guide") # 画像を見やすくするため幅を広めに設定
-    #     def show_guide():
-    #         tab1, tab2 = st.tabs([":material/help: How to use", ":material/description: About"])
-            
-    #         with tab1:
-    #             st.markdown("### 1. 出生データの入力")
-    #             # ローカルの画像ファイルを表示する場合
-    #             # st.image("step1_screenshot.png", caption="日時と場所を入力してください")
-                
-    #             # サンプルとしてURL（プレースホルダー）を使用する場合
-    #             st.image("https://placehold.jp/600x300.png", caption="入力画面のサンプルイメージ")
-                
-    #             st.markdown("""
-    #             **操作手順:**
-    #             1. 日付と時刻を選択
-    #             2. 緯度・経度を入力（または地図から選択）
-    #             3. **Generate** ボタンをクリック！
-    #             """)
-
-    #         with tab2:
-    #             st.write("JyotiSONは、インド占星術のデータをLLMが読み取りやすいJSON形式で出力します。")
-
-    #     show_info_dialog = show_guide()
+    # render_help_button(t) # ヘルプボタン内は準備中のため非表示
     pass
 
 
@@ -291,10 +265,11 @@ with st.container(border=True):
 
     st.markdown(
     f"""
-    {t("geo")} <span style="font-size:0.85rem; margin-left: 20px;">{t('geo_gmap')}
+    {t('geo')}
+    <span style="margin-left: 24px;">:material/content_copy:</span>
+    :small[{t('geo_gmap')}]
     <a href="https://www.google.com/maps" target="_blank">
-    :material/open_in_new: {t("gmap")}</a>
-    </span>
+    :small[{t('gmap')}] :material/open_in_new:</a>
     """,
     unsafe_allow_html=True,
     )
@@ -304,7 +279,7 @@ with st.container(border=True):
 
     with g1:
         geo_paste = st.text_input(
-            t("geo_paste"),
+            f":material/content_paste: {t('geo_paste')}",
             placeholder=t("geo_ph"),
             help=t("geo_help"),
             key="geo_paste",
@@ -390,7 +365,7 @@ with st.container(border=True):
 
     with tz_l:
         st.markdown(
-            f"<span style='font-size:0.9rem;'>{t('tz')}</span>",
+            f":material/globe: :small[{t('tz')}]",
             help=t("tz_help"),
             unsafe_allow_html=True,
         )
@@ -471,30 +446,18 @@ with st.container(border=True):
             on_preset_slider_change()
 
         # Custom 中だけ、スライダーを薄く表示
-        if st.session_state.get("is_custom", False):
-            st.markdown(
-                """
-                <style>
-                div[data-testid="stSlider"] > div {
-                    opacity: 0.4;
-                    transition: opacity 0.2s ease-in-out;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                """
-                <style>
-                div[data-testid="stSlider"] > div {
-                    opacity: 1.0;
-                    transition: opacity 0.2s ease-in-out;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
+        opacity = "0.4" if st.session_state.get("is_custom", False) else "1.0"
+        st.markdown(
+            f"""
+            <style>
+            div[data-testid="stSlider"] > div {{
+                opacity: {opacity};
+                transition: opacity 0.2s ease-in-out;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with col_status:
         # 「完璧に揃った」Custom 表示をそのまま利用
@@ -544,7 +507,7 @@ with tab_basic:
 
         # 内部値の正規化（安全策）
         if st.session_state["node_type"] not in ("Mean", "True"):
-            st.session_state["node_type"] = "True"
+            st.session_state["node_type"] = "Mean"
 
         lang = st.session_state.get("lang", "EN")
         node_type_widget_key = f"node_type_{lang}"
@@ -570,16 +533,16 @@ with tab_basic:
         st.session_state["node_type"] = node_type
 
     with col_ck:
-        # --- Chara Karaka（内部は文字列 "8"/"7"）---
+        # --- Chara Karaka（内部は文字列 "7"/"8"）---
         ck_mode_str = st.radio(
             t("ck_mode"),
-            options=["8", "7"],
-            format_func=lambda s: t("ck_8") if s == "8" else t("ck_7"),
+            options=["7", "8"],
+            format_func=lambda s: t("ck_7") if s == "7" else t("ck_8"),
             key="ck_mode",   # session_state["ck_mode"] をそのまま使う
         )
 
         # 計算では int に変換
-        ck_mode = 8 if ck_mode_str == "8" else 7
+        ck_mode = 7 if ck_mode_str == "7" else 8
 
     # --- 2行目：minimize（columns の外） ---
     minimize = st.checkbox(
@@ -632,29 +595,38 @@ with tab_varga:
     with e1:
         include_d1  = st.checkbox(t("d1"),  key="include_d1",  on_change=on_manual_option_changed)
         include_d9  = st.checkbox(t("d9"),  key="include_d9",  on_change=on_manual_option_changed)
+        include_d2  = st.checkbox(t("d2"),  key="include_d2",  on_change=on_manual_option_changed)
         include_d3  = st.checkbox(t("d3"),  key="include_d3",  on_change=on_manual_option_changed)
         include_d4  = st.checkbox(t("d4"),  key="include_d4",  on_change=on_manual_option_changed)
         include_d7  = st.checkbox(t("d7"),  key="include_d7",  on_change=on_manual_option_changed)
         include_d10 = st.checkbox(t("d10"), key="include_d10", on_change=on_manual_option_changed)
+        include_d12 = st.checkbox(t("d12"), key="include_d12", on_change=on_manual_option_changed)
 
     with e2:
-        include_d12 = st.checkbox(t("d12"), key="include_d12", on_change=on_manual_option_changed)
         include_d16 = st.checkbox(t("d16"), key="include_d16", on_change=on_manual_option_changed)
         include_d20 = st.checkbox(t("d20"), key="include_d20", on_change=on_manual_option_changed)
         include_d24 = st.checkbox(t("d24"), key="include_d24", on_change=on_manual_option_changed)
+        include_d27 = st.checkbox(t("d27"), key="include_d27", on_change=on_manual_option_changed)
         include_d30 = st.checkbox(t("d30"), key="include_d30", on_change=on_manual_option_changed)
+        include_d40 = st.checkbox(t("d40"), key="include_d40", on_change=on_manual_option_changed)
+        include_d45 = st.checkbox(t("d45"), key="include_d45", on_change=on_manual_option_changed)
         include_d60 = st.checkbox(t("d60"), key="include_d60", on_change=on_manual_option_changed)
 
     # ---- Varga Output Options ----
     with st.expander(t("varga_op"), expanded=False):
         varga_d9_degree = st.checkbox(t("varga_d9_deg"), key="varga_d9_degree", on_change=on_manual_option_changed)
         varga_dignity   = st.checkbox(t("varga_d3d60_dig"), key="varga_dignity", on_change=on_manual_option_changed)
+        varga_degree   = st.checkbox(t("varga_d3d60_deg"), key="varga_degree", on_change=on_manual_option_changed)
 
 # =======================================================
 # ダシャータブ
 # =======================================================
 with tab_dasha:
-    opt_vimshottari = st.checkbox(t("vimshottari"), value=True)
+    opt_vimshottari = st.checkbox(
+        t("vimshottari"),
+        key="opt_vimshottari",
+        on_change=on_manual_option_changed
+    )
     st.checkbox(t("chara_dasha"), disabled=True)
 
 # =======================================================
@@ -722,10 +694,12 @@ def apply_ordering_to_chart(chart_dict: Optional[dict]) -> None:
 # 6) 生成（計算ロジックはそのまま）
 # =======================================================
 if go:
-    tz_offset = float(st.session_state["tz"])
+    # ▼ UTC offset を最初に一度だけ float に確定（これ以降 tz_offset を使い回す）
+    tz_offset = float(st.session_state.get("tz", 0.0))
+
     # 0) 入力 → UTC → JD(UT)
     hh = float(h) + float(m) / 60.0 + float(s) / 3600.0
-    hh_utc = hh - float(tz_offset)
+    hh_utc = hh - tz_offset
     jd_ut = julday_utc(birth_date.year, birth_date.month, birth_date.day, hh_utc)
 
     # 1) Ayanamsa（表示＋数値）
@@ -814,6 +788,7 @@ if go:
         # D3〜D60 include フラグ一覧
         # ------------------------------
         varga_includes: dict[str, bool] = {
+            "D2":  include_d2,
             "D3":  include_d3,
             "D4":  include_d4,
             "D7":  include_d7,
@@ -822,7 +797,10 @@ if go:
             "D16": include_d16,
             "D20": include_d20,
             "D24": include_d24,
+            "D27": include_d27,
             "D30": include_d30,
+            "D40": include_d40,
+            "D45": include_d45,
             "D60": include_d60,
         }
 
@@ -846,15 +824,17 @@ if go:
                     cast(Chart, vargas["D9"]), d1_chart, "D9"
                 )
 
-            # D3〜D60 はループで処理
+            # D2 は特殊出力（house無し）なので apply_varga_flags から除外
+            # D3〜D60 + (D27/D40/D45) はループで処理
             for name, flag in varga_includes.items():
-                if not flag or name not in vargas:
+                if not flag or name not in vargas or name == "D2":
                     continue
 
                 # ★ Literal 型へキャストして型エラーを解消する
                 kind_literal = cast(
                     Literal[
-                        "D3","D4","D7","D10","D12","D16","D20","D24","D30","D60"
+                        "D3","D4","D7","D10","D12","D16","D20",
+                        "D24","D27","D30","D40","D45","D60"
                     ],
                     name
                 )
@@ -864,7 +844,7 @@ if go:
                 )
 
     # 7) キー順の整形（存在時のみ）
-    for k in ("D1","D9","D3","D4","D7","D10","D12","D16","D20","D24","D30","D60"):
+    for k in ("D1","D9","D2","D3","D4","D7","D10","D12","D16","D20","D24","D27","D30","D40","D45","D60"):
         apply_ordering_to_chart(cast(dict, vargas.get(k)))
     
     # --- ダシャ（Vimshottari） ---
@@ -881,18 +861,15 @@ if go:
         horizon_years=110
     )
 
-    # UTC offset をここで一度だけ確定させる（重要）
-    tz_offset = st.session_state.get("tz")
-
     # 8) birth ISO8601
     birth_iso = (
         f"{birth_date.isoformat()}T"
         f"{int(h):02d}:{int(m):02d}:{int(s):02d}"
-        f"{format_tz_offset_for_iso(float(tz_offset) if tz_offset is not None else 0.0)}"
+        f"{format_tz_offset_for_iso(tz_offset)}"
     )
 
     # 出力生成時刻（tz付き ISO8601、秒まで）
-    tzinfo = _tz_from_offset_hours(float(tz_offset) if tz_offset is not None else 0.0)
+    tzinfo = _tz_from_offset_hours(tz_offset)
     output_at = datetime.now(tzinfo).isoformat(timespec="seconds")
 
     # 9) トップレベル JSON
@@ -958,30 +935,70 @@ if go:
         # ---- Varga ----
         "varga_d9_degree": varga_d9_degree,
         "varga_dignity": varga_dignity,
+        "varga_degree": varga_degree,
 
         # ---- Dasha ----
         "vimshottari": opt_vimshottari,
         # "chara_dasha": opt_chara,  # ← 今後実装予定
     }
 
-    # ★ charts の出力フィルタを適用
+    # 10) バリデーション（calc 完全データに対して実行）
+    out = prune_and_validate(out)
+
+    # ★ charts の出力フィルタを適用（表示用）
     out["charts"] = apply_output_options(out["charts"], output_options)
 
-    # ★ Dasha の ON/OFF
+    # ★ Dasha の ON/OFF（表示用）
     if not output_options.get("vimshottari", False):
         out.pop("dasha", None)
 
-    # 10) バリデーション → 表示/保存
-    out = prune_and_validate(out)
+    # 表示 / 保存
     minimize = bool(st.session_state.get("minimize", True))
     txt_pretty = pretty_json_inline_lists(out, indent=2)
     txt_min = json.dumps(out, ensure_ascii=False, separators=(",", ":")) if minimize else txt_pretty
 
-    st.subheader(t("preview"))
+    # Preview ヘッダー＋ダウンロードジャンプリンクを横並びに
+    prev_hdr, prev_jump = st.columns([3, 1])
+    with prev_hdr:
+        st.subheader(t("preview"))
+    with prev_jump:
+        st.markdown(
+            f"""
+            <a href="#download-link" title="{t('goto_download')}" class="btn-jump" style="text-decoration: none; cursor: pointer;">
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 1.5rem; height: 1.5rem;"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+            </a>
+            <style>
+            .btn-jump {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 2.4rem;
+                height: 2.4rem;
+                margin-top: 0.2rem;
+                border: 1px solid rgba(151, 162, 182, 0.4);
+                border-radius: 0.5rem;
+                background: transparent;
+                color: var(--text-color);
+                transition: all 0.15s ease;
+            }}
+            .btn-jump:hover {{
+                border-color: var(--primary-color);
+                color: var(--primary-color);
+                background: rgba(255, 255, 255, 0.1);
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.code(txt_pretty, language="json")
 
     fname_base = _sanitize_filename(user_name) + "_" + _yyyymmdd(birth_date)
     file_name = f"{fname_base}.json"
+
+    # アンカー（ジャンプ先マーカー）
+    st.markdown('<a id="download-link"></a>', unsafe_allow_html=True)
+
     st.download_button(
         label=t("download").format(file_name=file_name),
         data=txt_min.encode("utf-8"),

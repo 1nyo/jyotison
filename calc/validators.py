@@ -83,8 +83,8 @@ def pretty_json_inline_lists(obj: Dict, indent: int = 2) -> str:
 
     # charts で 1 行にまとめたい Varga
     TARGET_VARGAS = {
-        "D3", "D4", "D7", "D10", "D12", "D16",
-        "D20", "D24", "D30", "D60",
+        "D2", "D3", "D4", "D7", "D10", "D12", "D16",
+        "D20", "D24", "D27", "D30", "D40", "D45", "D60",
     }
 
     def dict_contains_dateish(d: Dict[str, Any]) -> bool:
@@ -281,19 +281,64 @@ def _validate_chart_D9(d: dict) -> dict:
                 rec["degree"] = validate_degree_0_30(rec["degree"])
     return d
 
-def _validate_chart_varga_generic(d: dict) -> dict:
+def _validate_chart_varga_with_degree(d: dict) -> dict:
     """
-    D3, D4, D7, D10, D12, D16, D20, D24, D30, D60 （すべて共通）
-    - degree は検証しない（存在しても黙認）
-    - house だけを検証する
+    D3-D60（D2 を除く）共通検証：
+    - Asc.degree 必須（0..29.99）
+    - planets.*.degree 必須（0..29.99）
+    - house（1..12）を検証
     """
+    # Asc
+    if not isinstance(d.get("Asc"), dict):
+        raise ValueError("varga chart missing Asc")
+
+    if "degree" not in d["Asc"]:
+        raise ValueError("varga Asc missing degree")
+
+    d["Asc"]["degree"] = validate_degree_0_30(d["Asc"]["degree"])
+
+    # planets
     if isinstance(d.get("planets"), dict):
         for p, rec in list(d["planets"].items()):
             if not isinstance(rec, dict):
                 d["planets"].pop(p, None)
                 continue
+
+            if "degree" not in rec:
+                raise ValueError(f"varga planet {p} missing degree")
+
+            rec["degree"] = validate_degree_0_30(rec["degree"])
+
             if "house" in rec:
                 rec["house"] = validate_house(rec["house"])
+
+    return d
+
+def _validate_chart_varga_optional_degree(d: dict) -> dict:
+    """
+    D2（Hora）用バリデータ：
+    - degree が存在する場合のみ 0..29.99 を検証
+    - 無くてもエラーにしない
+    - house があれば検証（将来拡張用）
+    """
+
+    # Asc
+    if isinstance(d.get("Asc"), dict) and "degree" in d["Asc"]:
+        d["Asc"]["degree"] = validate_degree_0_30(d["Asc"]["degree"])
+
+    # planets
+    if isinstance(d.get("planets"), dict):
+        for p, rec in list(d["planets"].items()):
+            if not isinstance(rec, dict):
+                d["planets"].pop(p, None)
+                continue
+
+            if "degree" in rec:
+                rec["degree"] = validate_degree_0_30(rec["degree"])
+
+            if "house" in rec:
+                rec["house"] = validate_house(rec["house"])
+
     return d
 
 def _validate_charts(charts: dict) -> dict:
@@ -302,8 +347,8 @@ def _validate_charts(charts: dict) -> dict:
     """
 
     GENERIC_VARGAS = {
-        "D3", "D4", "D7", "D10", "D12",
-        "D16", "D20", "D24", "D30", "D60"
+        "D2", "D3", "D4", "D7", "D10", "D12", "D16",
+        "D20", "D24", "D27", "D30", "D40", "D45", "D60"
     }
 
     out: Dict[str, dict] = {}
@@ -320,7 +365,10 @@ def _validate_charts(charts: dict) -> dict:
             chart = _validate_chart_D9(chart)
 
         elif name in GENERIC_VARGAS:
-            chart = _validate_chart_varga_generic(chart)
+            if name == "D2":
+                chart = _validate_chart_varga_optional_degree(chart)
+            else:
+                chart = _validate_chart_varga_with_degree(chart)
 
         # ---- 空チャートは削除 ----
         if _is_nonempty_chart(chart):
@@ -335,7 +383,7 @@ def prune_and_validate(out: Dict) -> Dict:
     """
     新仕様：
       - トップレベルは必ず {"schema", "generator", "birth_data", "calculation_settings", "charts"} 構造
-      - charts 配下の D1/D9/D20/D60 を検証・丸め
+      - charts 配下の D1/D9/D2-D60 を検証・丸め
       - 空チャートは削除
       - 旧仕様の名残（トップレベル直下に "D1": {} 等が生える）の除去
     """
@@ -343,8 +391,8 @@ def prune_and_validate(out: Dict) -> Dict:
 
     # 旧仕様の名残を削除（トップレベルに Dチャートが出てしまうバグの除去）
     ALL_VARGAS = {
-        "D1", "D3", "D4", "D7", "D9", "D10", "D12",
-        "D16", "D20", "D24", "D30", "D60"
+        "D1", "D2", "D3", "D4", "D7", "D9", "D10", "D12",
+        "D16", "D20", "D24", "D27", "D30", "D40", "D45", "D60"
     }
     for k in ALL_VARGAS:
         if k in out:
