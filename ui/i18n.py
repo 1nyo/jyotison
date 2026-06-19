@@ -34,7 +34,7 @@ I18nKey = Literal[
     "tab_basic", "tab_d1", "tab_varga", "tab_dasha",
     "node_type", "node_mean", "node_true", "ck_mode", "ck_8", "ck_7", "minimize",
     "d1_interactions", "d1_motion", "d1_conditions", "d1_special",
-    "chk_nak_lord", "chk_aspects", "chk_conjunctions", "chk_speed_status",
+    "chk_nakshatra", "chk_aspects", "chk_conjunctions", "chk_speed_status",
     "chk_combust", "chk_planet_war", "chk_dignity_detail", "chk_dig_bala",
     "chk_vargottama", "chk_gandanta",
     "d1", "d2", "d3", "d4", "d7", "d9",
@@ -177,7 +177,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "d1_special": "特殊配置",
 
         # D1 detail options
-        "chk_nak_lord": "ナクシャトラロード",
+        "chk_nakshatra": "ナクシャトラ",
         "chk_aspects": "アスペクト（グラハ・ドリシュティ）",
         "chk_conjunctions": "コンジャンクション",
         "chk_speed_status": "速度の特異値（高速/低速/停止）",
@@ -405,7 +405,7 @@ LANG_DICT: Dict[str, Dict[str, str]] = {
         "d1_special": "Special Positions",
 
         # D1 detail options
-        "chk_nak_lord": "Nakshatra Lord",
+        "chk_nakshatra": "Nakshatra",
         "chk_aspects": "Aspects to Signs",
         "chk_conjunctions": "Conjunctions",
         "chk_speed_status": "Speed Status (fast/slow/station)",

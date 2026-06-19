@@ -5,4 +5,7 @@ __pycache__/
 .vscode/
 .continue/
 # ローカルのUIテスト用ファイル
-uitest.py
+# uitest.py
+# ローカルでテスト中のフォルダ
+test/
+help/

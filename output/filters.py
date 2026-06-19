@@ -35,34 +35,53 @@ _DERIVED_FILTERS: List[Tuple[str, str]] = [
 # dignity フィルターの許容値（dignity_detail OFF時のみ保持）
 _DIGNITY_KEEP = {"exalted", "debilitated", "moolatrikona", "owned"}
 
-
-def _apply_planet_filters(rec: Dict, opt: Dict) -> None:
+def _apply_planet_filters(rec: Dict, opt: Dict, planet_key: str) -> None:
     """
     単一惑星レコードから不要フィールドを削除。
     """
-    # nakshatra lord
-    if not opt.get("nakshatra_lord", False):
-        if isinstance(rec.get("nakshatra"), dict):
-            rec["nakshatra"].pop("lord", None)
 
-    # 単純フィールドポップ（データ駆動）
+    is_moon = planet_key == "Mo"
+
+    nak = rec.get("nakshatra")
+
+    if isinstance(nak, dict):
+
+        # 月は常に保持
+        if not is_moon:
+            if not opt.get("nakshatra", False):
+                rec.pop("nakshatra", None)
+
+    # -------------------------------
+    # 他フィールド（そのまま）
+    # -------------------------------
     for opt_key, field in (
-        ("aspects",         "aspects_to_sign"),
-        ("conjunctions",    "occupancy_in_sign"),
-        ("combust",         "combust"),
-        ("planet_war",      "planet_war"),
-        ("dig_bala",        "dig_bala"),
-        ("vargottama",      "vargottama"),
-        ("gandanta",        "gandanta"),
+        ("aspects",      "aspects_to_sign"),
+        ("conjunctions", "occupancy_in_sign"),
+        ("combust",      "combust"),
+        ("planet_war",   "planet_war"),
+        ("dig_bala",     "dig_bala"),
+        ("vargottama",   "vargottama"),
+        ("gandanta",     "gandanta"),
     ):
         if not opt.get(opt_key, False):
             rec.pop(field, None)
 
-    # dignity filter
+    # dignity
     if not opt.get("dignity_detail", False):
         dignity = rec.get("dignity")
         if isinstance(dignity, str) and dignity not in _DIGNITY_KEEP:
             rec.pop("dignity", None)
+
+    # speed
+    speed = rec.get("speed")
+    if isinstance(speed, dict):
+
+        if not opt.get("speed_status", False):
+            rec.pop("speed", None)
+        else:
+            if speed.get("status") == "normal":
+                rec.pop("speed", None)
+
     
     # -------------------------------
     # speed（normal は出力しない）
@@ -118,15 +137,18 @@ def apply_output_options(charts: Dict, opt: Dict) -> Dict:
     if isinstance(d1, dict):
         # Asc
         asc = d1.get("Asc")
-        if isinstance(asc, dict) and not opt.get("nakshatra_lord", False):
-            if isinstance(asc.get("nakshatra"), dict):
-                asc["nakshatra"].pop("lord", None)
+        if isinstance(asc, dict):
+            # AscのNakshatraは常に保持（フィルタリングしない）
+            pass
+        #   nakshatra を保持しない場合は次のコメントを外す
+        #   if not opt.get("nakshatra", False):
+        #       asc.pop("nakshatra", None)
 
         # planets
         if isinstance(d1.get("planets"), dict):
-            for rec in d1["planets"].values():
+            for p_key, rec in d1["planets"].items():
                 if isinstance(rec, dict):
-                    _apply_planet_filters(rec, opt)
+                    _apply_planet_filters(rec, opt, p_key)
 
         # derived
         derived = d1.get("derived")

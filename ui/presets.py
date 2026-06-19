@@ -35,7 +35,7 @@ K_PRESET_INITIALIZED = "preset_initialized"
 # ----------------------------
 PRESET_KEYS = [
     # D1 output details
-    "opt_nak_lord", "opt_aspects", "opt_conjunctions", "opt_speed_status",
+    "opt_nakshatra", "opt_aspects", "opt_conjunctions", "opt_speed_status",
     "opt_dig_bala", "opt_combust", "opt_planet_war", "opt_dignity_det",
     "opt_vargottama", "opt_gandanta",
 
@@ -58,7 +58,7 @@ PRESET_KEYS = [
 PRESETS: Dict[str, Dict[str, bool]] = {
     "Basic": {
         # --- D1 Details ---
-        "opt_nak_lord": False,
+        "opt_nakshatra": False,
         "opt_aspects": False,
         "opt_conjunctions": False,
         "opt_speed_status": False,
@@ -98,7 +98,7 @@ PRESETS: Dict[str, Dict[str, bool]] = {
 
     "Standard": {
         # --- D1 Details ---
-        "opt_nak_lord": True,
+        "opt_nakshatra": True,
         "opt_aspects": True,
         "opt_conjunctions": True,
         "opt_speed_status": False,

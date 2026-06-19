@@ -560,7 +560,7 @@ with tab_d1:
     with d1:
         # ---- Interactions ----
         st.caption(f":material/sync_alt: {t('d1_interactions')}")
-        opt_nak_lord     = st.checkbox(t("chk_nak_lord"), key="opt_nak_lord", on_change=on_manual_option_changed)
+        opt_nakshatra    = st.checkbox(t("chk_nakshatra"), key="opt_nakshatra", on_change=on_manual_option_changed)
         opt_aspects      = st.checkbox(t("chk_aspects"), key="opt_aspects", on_change=on_manual_option_changed)
         opt_conjunctions = st.checkbox(t("chk_conjunctions"), key="opt_conjunctions", on_change=on_manual_option_changed)
 
@@ -917,7 +917,7 @@ if go:
 
     output_options = {
         # ---- D1 ----
-        "nakshatra_lord": opt_nak_lord,
+        "nakshatra": opt_nakshatra,
         "aspects": opt_aspects,
         "conjunctions": opt_conjunctions,
         "combust": opt_combust,
@@ -1005,6 +1005,7 @@ if go:
         file_name=file_name,
         mime="application/json",
         use_container_width=True,
+        icon=":material/download:"
     )
 
 # --- フッター ---

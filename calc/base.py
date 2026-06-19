@@ -121,7 +121,7 @@ def nakshatra_of(long_deg: float) -> Tuple[str, str, int]:
 def nakshatra_percent_left(long_deg: float) -> float:
     """
     現在のナクシャトラ内の percent_left(0..100)。
-    ※ JH に最も近いシンプル式：中間は float のまま、最後だけ round(…, 2)
+    ※ シンプル式：中間は float のまま、最後だけ round(…, 2)
     """
     pos = long_deg % NA_SIZE
     prog = pos / NA_SIZE
